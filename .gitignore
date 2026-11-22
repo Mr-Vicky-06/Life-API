@@ -34,3 +34,6 @@ requirements.lock
 models/
 huggingface/
 checkpoints/
+
+# External universal skill book
+vignesh-universal-skill-book/
