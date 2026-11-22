@@ -1,0 +1,41 @@
+# SECURITY — Privacy, Guardrails, SQL Safety
+
+## 1. Threat Model
+(1) Private data leaking to cloud LLMs. (2) LLM-generated SQL mutating/exfiltrating data. (3) Prompt injection via notes/commit messages. (4) Secrets leaking via logs. (5) Unauthorized API access.
+
+## 2. PII Masking (`gateway/pii.py`)
+`mask(text) -> (masked_text, mapping)`, `unmask(text, mapping) -> str`.
+Regex rules (compiled, ordered):
+| Type | Pattern intent | Placeholder |
+|---|---|---|
+| EMAIL | standard email | `[EMAIL_n]` |
+| PHONE | 10–13 digits with optional +, spaces, dashes | `[PHONE_n]` |
+| GH_TOKEN | `gh[pousr]_[A-Za-z0-9]{20,}` | `[TOKEN_n]` |
+| API_KEY | `s[k]-[A-Za-z0-9]{16,}`, `A[I]za[0-9A-Za-z_-]{20,}` | `[TOKEN_n]` |
+| GEO | `-?\d{1,3}\.\d{4,},\s*-?\d{1,3}\.\d{4,}` | `[GEO_n]` |
+| HEALTH_ID | env `HEALTH_ID_REGEX` (optional) | `[HEALTH_ID_n]` |
+Same value → same placeholder within a request. Mapping lives in request memory only; **never logged, never stored**. Masking is applied when the target model is NOT `ollama/*` (always apply to logs). Output unmasking is local. After unmasking, any placeholder not in the mapping is left as is.
+
+## 3. Guardrails (`gateway/guardrails.py`)
+Input: reject empty/over-length input; detect injection phrases (`ignore previous`, `system prompt`, `reveal your instructions`, `you are now`) in USER input → HTTP 400 `guardrail_blocked`. In retrieved note text, do not block, but wrap in `<data>` tags.
+Output: JSON must validate; strip any text matching secret patterns (§2) from final answers; refuse to return the system prompt.
+
+## 4. SQL Validator (`sql_agent/validator.py`) — mandatory
+Using `sqlglot.parse(sql, read="postgres")`:
+1. Exactly 1 statement, else reject.
+2. Root must be `exp.Select` (CTEs allowed, whose bodies are also SELECT).
+3. Every table referenced ∈ `{v_daily_summary, v_commits, v_screen_time, v_reading}` (CTE names excluded from this check).
+4. Reject if any function name (lowercased) ∈ `{pg_sleep, pg_read_file, pg_ls_dir, lo_import, lo_export, dblink, copy, set_config, current_setting, pg_terminate_backend}` or name starts with `pg_`.
+5. Reject comments containing `;`, reject `INTO`, `FOR UPDATE`, `LOCK`.
+6. Add `LIMIT 200` if absent; clamp larger limits to 200.
+7. Return normalized SQL via `.sql(dialect="postgres")`.
+Defense in depth (all three required): validator + RO role with only view SELECT grants + `SET LOCAL statement_timeout='5s'` inside `BEGIN READ ONLY`.
+
+## 5. Secrets & Logging
+`.env` git-ignored; `.env.example` has no real values. Logger filters redact anything matching §2 and the literal values of `APP_API_KEY`, `GITHUB_TOKEN`. `query_log.question_masked` stores the masked question only.
+
+## 6. API Access
+`X-API-Key` compared with `hmac.compare_digest`. CORS: allow only `http://localhost:8501`. Rate limit: simple in-memory 60 req/min per key (middleware).
+
+## 7. Local-first Privacy Mode
+Default `CLOUD_LLM_ENABLED=false`: data never leaves the machine. Enabling cloud requires editing `.env`; the gateway logs a startup warning stating that masked prompts will be sent to the configured provider.
