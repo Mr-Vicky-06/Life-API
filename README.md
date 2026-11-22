@@ -48,6 +48,30 @@ uvicorn app.main:app --reload   # → http://localhost:8000
 streamlit run dashboard/app.py  # → http://localhost:8501
 ```
 
+## Run locally
+
+Using the automated development runner (Windows PowerShell):
+```powershell
+.\scripts\dev.ps1
+```
+
+Or manually:
+```powershell
+# 1. Activate the virtual environment
+.\.venv\Scripts\Activate.ps1
+
+# 2. Start the database container and wait for health
+docker compose up -d db
+
+# 3. Start the API server and keep it running
+python -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
+```
+
+Verify in another terminal or browser:
+```powershell
+curl http://127.0.0.1:8000/health
+```
+
 ## API Examples
 
 ```bash
