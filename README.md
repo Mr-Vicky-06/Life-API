@@ -72,6 +72,34 @@ Verify in another terminal or browser:
 curl http://127.0.0.1:8000/health
 ```
 
+## LLM Setup
+
+Life-API uses local models for privacy and cost control:
+- **General Model**: Ollama running `llama3.1:8b` (used for Text-to-SQL, summaries, daily insights, query rewriting, and structured JSON).
+- **Router Model (optional)**: Needle 3 via `cactus-compute` (used strictly for the ReAct agent's tool selection).
+
+### 1. Install and Start Ollama
+Download and install Ollama from [ollama.com](https://ollama.com).
+
+Start the Ollama daemon:
+```bash
+ollama serve
+```
+
+### 2. Pull the General Model
+In a separate terminal, pull the required model:
+```bash
+ollama pull llama3.1:8b
+```
+
+Verify that the model is installed and running:
+```bash
+ollama list
+curl http://localhost:11434/api/tags
+```
+
+When Ollama is running and `llama3.1:8b` is pulled, `GET /health` will report `"llm": true`.
+
 ## API Examples
 
 ```bash
