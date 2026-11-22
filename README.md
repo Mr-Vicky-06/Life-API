@@ -95,8 +95,10 @@ ollama pull llama3.1:8b
 Verify that the model is installed and running:
 ```bash
 ollama list
-curl http://localhost:11434/api/tags
+curl http://127.0.0.1:11434/api/tags
 ```
+
+> **IPv4 vs IPv6 Note:** Set `LLM_API_BASE=http://127.0.0.1:11434` in `.env`. On Windows, `localhost` often resolves to the IPv6 loopback `::1` while Ollama listens on IPv4 `127.0.0.1:11434`, resulting in connection timeouts or refusals. Explicitly using `127.0.0.1` ensures reliable direct connectivity.
 
 When Ollama is running and `llama3.1:8b` is pulled, `GET /health` will report `"llm": true`.
 

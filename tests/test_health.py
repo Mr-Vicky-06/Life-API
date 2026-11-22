@@ -34,7 +34,7 @@ def test_health_endpoint_schema():
 @respx.mock
 def test_health_endpoint_ollama_present():
     """When Ollama is up and the configured model is present, llm should be True."""
-    respx.get("http://localhost:11434/api/tags").mock(
+    respx.get("http://127.0.0.1:11434/api/tags").mock(
         return_value=httpx.Response(200, json={"models": [{"name": "llama3.1:8b"}]})
     )
     client = TestClient(app)
@@ -49,7 +49,7 @@ def test_health_endpoint_ollama_present():
 @respx.mock
 def test_health_endpoint_ollama_model_missing():
     """When Ollama is up but the model is missing, llm should be False with details."""
-    respx.get("http://localhost:11434/api/tags").mock(
+    respx.get("http://127.0.0.1:11434/api/tags").mock(
         return_value=httpx.Response(200, json={"models": [{"name": "mistral:latest"}]})
     )
     client = TestClient(app)
@@ -65,7 +65,7 @@ def test_health_endpoint_ollama_model_missing():
 @respx.mock
 def test_health_endpoint_ollama_down():
     """When Ollama is unreachable, llm should be False with short reason and no secrets."""
-    respx.get("http://localhost:11434/api/tags").mock(
+    respx.get("http://127.0.0.1:11434/api/tags").mock(
         side_effect=httpx.ConnectError("Connection refused")
     )
     client = TestClient(app)

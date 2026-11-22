@@ -177,3 +177,9 @@ Output:
 
 ## 8. Next Phase
 Phase 1 — Database: ORM models, Alembic `0001_init` migration (tables, indexes, views, `life_ro` grants), and `db.py` dual engine setup.
+
+## 9. Not Verified
+- Live Ollama execution (`call_llm` and `/health` with `llm: true` against a real running Ollama server). Verified only by mock tests (`tests/test_health.py` with `respx`). Real endpoint check reported `llm: false` due to Ollama daemon not running at `http://127.0.0.1:11434`.
+
+## 10. Backlog
+- Revisit Needle after Phase 7 with a 60-query natural-phrasing test and general-model fallback.
