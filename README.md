@@ -1,0 +1,101 @@
+# Life-API — Personal API for Your Life
+
+A privacy-first, local-first API + dashboard that unifies GitHub commits,
+health/sleep metrics, reading logs, screen time, and journal notes into
+PostgreSQL 16 + pgvector, with natural-language query, hybrid RAG, and a
+Streamlit dashboard.
+
+## Architecture
+
+```
+Data Streams (GitHub | CSV health/reading/screen-time | notes)
+        │
+L1  Ingestion (fetch → clean → dedupe → UTC → load)
+        │   Postgres 16 + pgvector
+L2  Context: Text-to-SQL | Hybrid Search (FTS + vector, RRF) | Query Rewrite
+        │
+L3  Model Gateway: LiteLLM | PII mask/unmask | guardrails | retries
+        │
+L4  FastAPI /v1/*  ──  Streamlit :8501  ──  ReAct agent
+```
+
+## Quickstart
+
+```bash
+# 1. Clone and enter the repo
+git clone <repo-url> && cd life-api
+
+# 2. Copy and fill the env file
+cp .env.example .env   # edit APP_API_KEY; optionally set GITHUB_TOKEN
+
+# 3. Start Postgres
+docker compose up -d db
+
+# 4. Create a venv and install dependencies
+python -m venv .venv && .venv\Scripts\activate   # Windows
+pip install -e ".[dev]"
+
+# 5. Run migrations
+alembic upgrade head
+
+# 6. Seed deterministic demo data (90 days)
+python -m scripts.seed
+
+# 7. Start the API
+uvicorn app.main:app --reload   # → http://localhost:8000
+
+# 8. Start the dashboard
+streamlit run dashboard/app.py  # → http://localhost:8501
+```
+
+## API Examples
+
+```bash
+# Health check (no auth)
+curl http://localhost:8000/health
+
+# Natural-language query
+curl -X POST http://localhost:8000/v1/query \
+  -H "X-API-Key: change-me" \
+  -H "Content-Type: application/json" \
+  -d '{"question": "What was my average sleep on days I pushed code?"}'
+
+# Hybrid search over notes
+curl -X POST http://localhost:8000/v1/search \
+  -H "X-API-Key: change-me" \
+  -H "Content-Type: application/json" \
+  -d '{"query": "slept badly", "top_k": 5}'
+
+# Daily metrics
+curl "http://localhost:8000/v1/metrics?from=2026-10-01&to=2026-10-31&metrics=sleep_hours,commits" \
+  -H "X-API-Key: change-me"
+```
+
+## Running Tests
+
+```bash
+pytest -q           # all tests (no Ollama required)
+pytest -m live -q   # live-LLM tests (needs Ollama running)
+ruff check .        # lint
+```
+
+## Security Notes
+
+- All LLM-generated SQL is validated by `sqlglot` and executed as a read-only DB role.
+- PII is masked before any cloud-model call; never logged raw.
+- Default `CLOUD_LLM_ENABLED=false` — data never leaves your machine.
+
+## Build Status
+
+| Phase | Status |
+|-------|--------|
+| 0 — Scaffold | ✅ |
+| 1 — Database | ⬜ |
+| 2 — Ingestion + Seed | ⬜ |
+| 3 — Model Gateway + PII | ⬜ |
+| 4 — Embeddings + Hybrid Search | ⬜ |
+| 5 — Text-to-SQL | ⬜ |
+| 6 — Metrics + Insights API | ⬜ |
+| 7 — ReAct Agent | ⬜ |
+| 8 — Dashboard | ⬜ |
+| 9 — Hardening | ⬜ |
