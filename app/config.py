@@ -28,6 +28,7 @@ class Settings(BaseSettings):
     llm_fallback_model: str = ""
     llm_api_base: str = "http://localhost:11434"
     cloud_llm_enabled: bool = False
+    router_model: str = "general"
 
     embed_model: str = "sentence-transformers/all-MiniLM-L6-v2"
 

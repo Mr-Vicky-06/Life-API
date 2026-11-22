@@ -26,12 +26,18 @@ Dependency rule: a layer may only import from layers above it in this list (L4 â
 | Embeddings | `sentence-transformers` model `all-MiniLM-L6-v2` (384 dims, runs locally) |
 | LLM gateway | `litellm` |
 | Local LLM | Ollama (default `LLM_MODEL=ollama/llama3.1:8b`) |
+| Router LLM (optional) | Needle 3 via `cactus-compute` (`ROUTER_MODEL=needle`, approved optional dependency for tool routing only) |
 | SQL safety | `sqlglot` |
 | HTTP client | `httpx` |
 | Dashboard | Streamlit + Plotly |
 | Tests | pytest, pytest-asyncio, respx (mock HTTP) |
 | Lint | ruff |
 | Packaging | `pyproject.toml`, venv. Pin versions with `pip freeze > requirements.lock` after Phase 0 |
+
+### Model Roles
+Life-API uses TWO model roles:
+1. **GENERAL model** (Ollama, `LLM_MODEL` in `.env`): Text-to-SQL, result summaries, daily insights, query rewriting, structured JSON.
+2. **ROUTER model** (Needle, optional, `ROUTER_MODEL` in `.env`): ONLY the ReAct agent's tool selection step. It never writes SQL or prose. Needle is NOT a replacement for the general model.
 
 ## 3. Environment Variables (`.env.example`)
 ```
@@ -44,6 +50,7 @@ LLM_MODEL=ollama/llama3.1:8b
 LLM_FALLBACK_MODEL=
 LLM_API_BASE=http://localhost:11434
 CLOUD_LLM_ENABLED=false
+ROUTER_MODEL=general
 EMBED_MODEL=sentence-transformers/all-MiniLM-L6-v2
 GITHUB_TOKEN=
 GITHUB_USERNAME=

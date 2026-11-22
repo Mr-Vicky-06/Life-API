@@ -16,7 +16,7 @@ ORM models, Alembic `0001_init` (tables, indexes, views, role grants per `DATA_A
 **Gate:** `python -m scripts.seed` twice → row counts unchanged on second run; `pytest tests/unit/test_cleaning.py tests/integration/test_ingest.py` green.
 
 ### Phase 3 — Model Gateway + PII
-`gateway/llm.py` (LiteLLM wrapper: timeout 60s, 2 retries w/ backoff, fallback model, latency log, cloud-disabled guard), `pii.py`, `guardrails.py`, `structured.py`.
+`gateway/llm.py` (LiteLLM wrapper: timeout 60s, 2 retries w/ backoff, fallback model, latency log, cloud-disabled guard), `pii.py`, `guardrails.py`, `structured.py`, `gateway/router.py` (RouterBackend protocol with GeneralLLMRouter and optional NeedleRouter).
 **Gate:** `pytest tests/security/test_pii.py tests/unit/test_structured.py` green; a mocked cloud call captured by respx contains zero emails/tokens.
 
 ### Phase 4 — Embeddings + Hybrid Search
@@ -32,7 +32,7 @@ Schema prompt, generator, validator, executor, `/v1/query`.
 **Gate:** schema validation tests pass; response numbers equal DB values.
 
 ### Phase 7 — ReAct Agent
-Per Part B.
+Per Part B. Uses `RouterBackend` from Phase 3 for tool selection (Ollama general model or Needle router).
 **Gate:** `tests/integration/test_agent.py` (stub LLM scripted to call `get_metrics` then `final`) passes; step cap enforced.
 
 ### Phase 8 — Dashboard
