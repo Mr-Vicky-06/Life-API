@@ -14,6 +14,7 @@ from fastapi.responses import JSONResponse
 from app.api.routes_health import router as health_router
 from app.api.routes_ingest import router as ingest_router
 from app.config import get_settings
+from app.gateway.logging_filter import install_logging_redaction
 
 logger = logging.getLogger(__name__)
 
@@ -21,6 +22,7 @@ logger = logging.getLogger(__name__)
 # App factory
 # ---------------------------------------------------------------------------
 settings = get_settings()
+install_logging_redaction(settings)
 
 app = FastAPI(
     title="Life-API",
