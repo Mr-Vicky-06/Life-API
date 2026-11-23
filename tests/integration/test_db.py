@@ -16,9 +16,9 @@ from sqlalchemy.orm import Session
 from app.models.notes import Note, NoteChunk
 
 TEST_DB_NAME = "life_test"
-ADMIN_CONN_STR = "postgresql://life:life@localhost:5432/life"
-TEST_RW_URL = f"postgresql+psycopg://life:life@localhost:5432/{TEST_DB_NAME}"
-TEST_RO_URL = f"postgresql+psycopg://life_ro:life_ro@localhost:5432/{TEST_DB_NAME}"
+ADMIN_CONN_STR = "postgresql://life:life@127.0.0.1:5432/life"
+TEST_RW_URL = f"postgresql+psycopg://life:life@127.0.0.1:5432/{TEST_DB_NAME}"
+TEST_RO_URL = f"postgresql+psycopg://life_ro:life_ro@127.0.0.1:5432/{TEST_DB_NAME}"
 
 
 @pytest.fixture(scope="module")
