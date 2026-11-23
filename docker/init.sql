@@ -11,3 +11,7 @@ BEGIN
   END IF;
 END
 $$;
+
+GRANT CONNECT ON DATABASE life TO life_ro;
+GRANT USAGE ON SCHEMA public TO life_ro;
+

@@ -1,33 +1,29 @@
 """Alembic environment configuration.
 
-Reads DATABASE_URL from .env so alembic.ini can remain secret-free.
+Reads DATABASE_URL from settings so alembic.ini can remain secret-free.
 """
 from __future__ import annotations
 
-import os
 from logging.config import fileConfig
 
 from alembic import context
-from dotenv import load_dotenv
 from sqlalchemy import engine_from_config, pool
 
-# Load .env so DATABASE_URL is available without it being hardcoded
-load_dotenv()
+import app.models  # noqa: F401 (registers all models on Base.metadata)
+from app.config import get_settings
+from app.db import Base
 
 config = context.config
 
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-# Override sqlalchemy.url from environment
-config.set_main_option("sqlalchemy.url", os.environ["DATABASE_URL"])
+# Override sqlalchemy.url from settings (or existing config if passed dynamically)
+if not config.get_main_option("sqlalchemy.url"):
+    settings = get_settings()
+    config.set_main_option("sqlalchemy.url", settings.database_url)
 
-# Import the metadata so autogenerate can diff (populated in later phases)
-try:
-    from app.db import Base
-    target_metadata = Base.metadata
-except Exception:
-    target_metadata = None
+target_metadata = Base.metadata
 
 
 def run_migrations_offline() -> None:
