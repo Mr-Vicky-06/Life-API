@@ -9,3 +9,4 @@
 | 2026-11-23 | Database port mapping changed to `127.0.0.1:5432:5432` in docker-compose.yml | Ensures PostgreSQL is only reachable locally from this machine for privacy. |
 | 2026-11-23 | Python 3.12 venv used while ARCHITECTURE.md pins 3.11 | Existing environment runs Python 3.12.10 cleanly with all dependencies compatible. |
 | 2026-11-23 | Minimal chunking and embeddings modules moved from Phase 4 to Phase 2 | The Phase 2 90-day synthetic seed script requires chunking and embeddings to populate `note_chunks` with real vector embeddings and `tsvector` columns. |
+| 2026-11-23 | Note `content_hash` includes `note_date` and `source_type` (`f"{note_date}\|{source_type}\|{cleaned_content}"`) | Prevents false deduplication collisions across different dates and note sources when notes share similar or identical content structures, while preserving exact daily idempotency. |

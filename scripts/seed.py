@@ -101,7 +101,7 @@ def generate_seed_data() -> dict[str, Any]:
         })
 
         # 2. Commits: commits ≈ 2 + 3·(sleep−6.5) + noise, min 0
-        noise = random.uniform(-1.5, 1.5)
+        noise = random.uniform(-5.0, 5.0)
         raw_commits = 2.0 + 3.0 * (sleep_hours - 6.5) + noise
         commit_count = max(0, int(round(raw_commits)))
 
@@ -173,10 +173,11 @@ def generate_seed_data() -> dict[str, Any]:
         # Reading notes: >= 20 reading notes across 90 days (~30% chance per day)
         if random.random() < 0.35 and reading_note_idx < 25:
             book_title, insight = BOOKS[reading_note_idx % len(BOOKS)]
+            chapter = (reading_note_idx % 10) + 1
             reading_note_text = (
-                f"Reading Notes: {book_title}. "
+                f"Reading Notes on {current_date}: {book_title} (Chapter {chapter}). "
                 f"Core Takeaway: {insight} "
-                "Reflecting on applying these concepts to personal data systems."
+                f"Reflection #{reading_note_idx + 1}: Applying these architectural concepts to personal data systems."
             )
             ts = datetime.datetime.combine(
                 current_date, datetime.time(22, 15), tzinfo=datetime.UTC

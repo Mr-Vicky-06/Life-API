@@ -90,3 +90,20 @@ def test_chunk_note_content():
     assert len(chunks) == 1
     assert chunks[0][0] == 0
     assert chunks[0][1] == "[2026-01-15 | journal] A brief reflection on testing."
+
+
+def test_chunk_note_content_large_text_overlap():
+    note_date = datetime.date(2026, 1, 20)
+    source_type = "reading_note"
+    sentence = "This is a detailed analysis of distributed database consensus and transaction logs. "
+    large_text = sentence * 15  # ~1200 chars > 500
+    chunks = chunk_note_content(large_text, note_date, source_type, chunk_size=500, chunk_overlap=80)
+    assert len(chunks) >= 2
+
+    for idx, header_text, raw_text in chunks:
+        assert header_text.startswith(f"[{note_date} | {source_type}] ")
+        assert header_text == f"[{note_date} | {source_type}] {raw_text}"
+
+    # Verify 80-char overlap between consecutive chunks
+    overlap_expected = chunks[0][2][-80:]
+    assert chunks[1][2].startswith(overlap_expected)

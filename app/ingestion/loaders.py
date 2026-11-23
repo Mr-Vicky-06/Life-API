@@ -166,9 +166,9 @@ def upsert_notes(
     for row in rows:
         raw_content = row["content"]
         cleaned_content = clean_text(raw_content)
-        content_hash = compute_content_hash(cleaned_content)
         note_date = row["note_date"]
         source_type = row["source_type"]
+        content_hash = compute_content_hash(f"{note_date}|{source_type}|{cleaned_content}")
 
         stmt = (
             insert(Note)
