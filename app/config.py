@@ -34,6 +34,7 @@ class Settings(BaseSettings):
 
     github_token: str = ""
     github_username: str = ""
+    health_id_regex: str = ""
 
 
 _settings: Settings | None = None
