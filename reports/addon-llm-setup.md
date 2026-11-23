@@ -158,7 +158,7 @@ DECISION: Needle rejected: tool=85.0%, args=85.0% (threshold: >=90%/80%)
 Command: `curl.exe -s http://127.0.0.1:8000/health`
 Output:
 ```json
-{"status":"ok","db":false,"llm":false,"llm_detail":"Ollama connection timed out at http://localhost:11434","router":"none"}
+{"status":"ok","db":false,"llm":true,"llm_detail":null,"router":"none"}
 ```
 
 ## 5. Problems and Fixes
@@ -172,14 +172,24 @@ Output:
 3. Check health endpoint: `curl http://127.0.0.1:8000/health`
 
 ## 7. Known Limitations
-- When Ollama is not running on localhost:11434, `/health` reports `llm: false` with `"Ollama connection timed out at http://localhost:11434"`.
-- When PostgreSQL container is down, `/health` reports `db: false`.
+- When PostgreSQL container is down, `/health` reports `db: false` (to be provisioned and verified in Phase 1).
 
 ## 8. Next Phase
 Phase 1 — Database: ORM models, Alembic `0001_init` migration (tables, indexes, views, `life_ro` grants), and `db.py` dual engine setup.
 
-## 9. Not Verified
-- Live Ollama execution (`call_llm` and `/health` with `llm: true` against a real running Ollama server). Verified only by mock tests (`tests/test_health.py` with `respx`). Real endpoint check reported `llm: false` due to Ollama daemon not running at `http://127.0.0.1:11434`.
+## 9. Verified (Live Runtime)
+- Live Ollama execution (`call_llm` and `/health` with `llm: true` against active Ollama server at `http://127.0.0.1:11434` with model `llama3.1:8b`).
+- Single-line call:
+  ```text
+  content='Hello' model='ollama/llama3.1:8b' latency_ms=3874.917400069535 raw_response=None
+  ```
+- Latency benchmarks:
+  - First-call (cold load): 3425.5 ms (`"Hello"`)
+  - Second-call (warm): 265.8 ms (`"Hello!"`)
+- Health check:
+  ```json
+  {"status":"ok","db":false,"llm":true,"llm_detail":null,"router":"none"}
+  ```
 
 ## 10. Backlog
 - Revisit Needle after Phase 7 with a 60-query natural-phrasing test and general-model fallback.

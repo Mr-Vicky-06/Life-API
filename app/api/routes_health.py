@@ -30,12 +30,12 @@ def check_llm(llm_api_base: str, llm_model: str) -> tuple[bool, str | None]:
                 for name in model_names
             )
             if not found:
-                return False, f"Model '{target_model}' not found in Ollama tags"
+                return False, f"Model not found: '{target_model}' not listed in Ollama tags"
             return True, None
-    except (httpx.ConnectError, httpx.NetworkError):
-        return False, f"Ollama service unavailable at {target_base}"
     except httpx.TimeoutException:
         return False, f"Ollama connection timed out at {target_base}"
+    except (httpx.ConnectError, httpx.NetworkError):
+        return False, f"Ollama connection refused (service not running at {target_base})"
     except Exception:
         # Never include secrets or stack traces in llm_detail
         return False, "Failed to connect to Ollama service"
