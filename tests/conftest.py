@@ -11,10 +11,10 @@ from fastapi.testclient import TestClient
 def _set_env():
     """Ensure minimum env vars are present for all tests."""
     os.environ.setdefault("APP_API_KEY", "test-key")
-    os.environ.setdefault("DATABASE_URL", "postgresql+psycopg://life:life@localhost:5432/life_test")
+    os.environ.setdefault("DATABASE_URL", "postgresql+psycopg://life:life@127.0.0.1:5432/life_test")
     os.environ.setdefault(
         "DATABASE_URL_RO",
-        "postgresql+psycopg://life_ro:life_ro@localhost:5432/life_test",
+        "postgresql+psycopg://life_ro:life_ro@127.0.0.1:5432/life_test",
     )
 
 

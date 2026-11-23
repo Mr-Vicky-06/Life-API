@@ -3,13 +3,16 @@ from __future__ import annotations
 
 import logging
 import time
+import uuid
 from collections import defaultdict
 
-from fastapi import FastAPI, Request, status
+from fastapi import FastAPI, HTTPException, Request, status
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from app.api.routes_health import router as health_router
+from app.api.routes_ingest import router as ingest_router
 from app.config import get_settings
 
 logger = logging.getLogger(__name__)
@@ -61,7 +64,41 @@ async def rate_limit_middleware(request: Request, call_next):
 
 
 # ---------------------------------------------------------------------------
+# Error Envelope Exception Handlers
+# ---------------------------------------------------------------------------
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request: Request, exc: HTTPException):
+    request_id = str(uuid.uuid4())
+    if isinstance(exc.detail, dict) and "error" in exc.detail:
+        err = exc.detail["error"]
+        if "request_id" not in err:
+            err["request_id"] = request_id
+        return JSONResponse(status_code=exc.status_code, content=exc.detail)
+
+    code = "unauthorized" if exc.status_code == 401 else "error"
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"error": {"code": code, "message": str(exc.detail), "request_id": request_id}},
+    )
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    request_id = str(uuid.uuid4())
+    return JSONResponse(
+        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        content={
+            "error": {
+                "code": "validation_error",
+                "message": str(exc),
+                "request_id": request_id,
+            }
+        },
+    )
+
+
+# ---------------------------------------------------------------------------
 # Routers
 # ---------------------------------------------------------------------------
 app.include_router(health_router)
-# Additional routers are added in later phases.
+app.include_router(ingest_router, prefix="/v1/ingest")
