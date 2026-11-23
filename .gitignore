@@ -31,7 +31,7 @@ requirements.lock
 
 # Local models and caching
 .cache/
-models/
+/models/
 huggingface/
 checkpoints/
 
