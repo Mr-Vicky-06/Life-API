@@ -47,8 +47,8 @@ def test_health_endpoint_ollama_present():
 
 
 @respx.mock
-def test_health_endpoint_ollama_model_missing():
-    """When Ollama is up but the model is missing, llm should be False with details."""
+def test_health_endpoint_ollama_model_not_found():
+    """When Ollama is up but the model is missing, llm_detail should state 'model not found'."""
     respx.get("http://127.0.0.1:11434/api/tags").mock(
         return_value=httpx.Response(200, json={"models": [{"name": "mistral:latest"}]})
     )
@@ -59,14 +59,15 @@ def test_health_endpoint_ollama_model_missing():
     assert data["status"] == "ok"
     assert data["llm"] is False
     assert data["llm_detail"] is not None
-    assert "not found" in data["llm_detail"]
+    assert "model not found" in data["llm_detail"].lower()
 
 
 @respx.mock
-def test_health_endpoint_ollama_down():
-    """When Ollama is unreachable, llm should be False with short reason and no secrets."""
+def test_health_endpoint_ollama_connection_refused():
+    """When Ollama is not running, llm_detail should state 'connection refused'."""
+    msg = "[WinError 10061] No connection could be made because target actively refused it"
     respx.get("http://127.0.0.1:11434/api/tags").mock(
-        side_effect=httpx.ConnectError("Connection refused")
+        side_effect=httpx.ConnectError(msg)
     )
     client = TestClient(app)
     response = client.get("/health")
@@ -75,4 +76,20 @@ def test_health_endpoint_ollama_down():
     assert data["status"] == "ok"
     assert data["llm"] is False
     assert data["llm_detail"] is not None
-    assert "unavailable" in data["llm_detail"]
+    assert "connection refused" in data["llm_detail"].lower()
+
+
+@respx.mock
+def test_health_endpoint_ollama_timed_out():
+    """When Ollama connection times out, llm_detail should state 'timed out'."""
+    respx.get("http://127.0.0.1:11434/api/tags").mock(
+        side_effect=httpx.TimeoutException("Connection timed out")
+    )
+    client = TestClient(app)
+    response = client.get("/health")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["status"] == "ok"
+    assert data["llm"] is False
+    assert data["llm_detail"] is not None
+    assert "timed out" in data["llm_detail"].lower()

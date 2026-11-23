@@ -3,7 +3,7 @@
 | Phase | Name | Status | Gate Result | Date | Commit Hash |
 |---|---|---|---|---|---|
 | 0 | Scaffold | Passed | `curl /health` 200 OK + `pytest -q` 2 passed | 2026-11-22 | cd50d18 |
-| Add-on | LLM Setup & Needle | Passed | `pytest -q` 9 passed; Needle spike 85% rejected | 2026-11-22 | 3ffbf52 |
+| Add-on | LLM Setup & Needle | Passed | Live LLM call OK (cold 3.4s, warm 266ms); /health llm=true | 2026-11-23 | pending |
 | 1 | Database | Pending | — | — | — |
 | 2 | Ingestion + Seed | Pending | — | — | — |
 | 3 | Model Gateway + PII | Pending | — | — | — |
