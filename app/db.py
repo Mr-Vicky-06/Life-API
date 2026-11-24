@@ -10,6 +10,7 @@ RO sessions are enforced read-only at both connection and transaction levels.
 from __future__ import annotations
 
 from collections.abc import Generator
+from contextlib import contextmanager
 from typing import Any
 
 from sqlalchemy import create_engine, text
@@ -94,6 +95,17 @@ def get_rw_session() -> Generator[Session, None, None]:
 
 def get_ro_session() -> Generator[Session, None, None]:
     """FastAPI dependency — yields a read-only DB session enforced READ ONLY."""
+    session = Session(bind=ro_engine())
+    try:
+        session.execute(text("SET TRANSACTION READ ONLY"))
+        yield session
+    finally:
+        session.close()
+
+
+@contextmanager
+def ro_session_scope() -> Generator[Session, None, None]:
+    """Context manager for standalone read-only DB sessions."""
     session = Session(bind=ro_engine())
     try:
         session.execute(text("SET TRANSACTION READ ONLY"))

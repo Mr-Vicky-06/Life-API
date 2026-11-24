@@ -5,6 +5,7 @@ import logging
 import time
 import uuid
 from collections import defaultdict
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException, Request, status
 from fastapi.exceptions import RequestValidationError
@@ -13,6 +14,7 @@ from fastapi.responses import JSONResponse
 
 from app.api.routes_health import router as health_router
 from app.api.routes_ingest import router as ingest_router
+from app.api.routes_search import router as search_router
 from app.config import get_settings
 from app.gateway.logging_filter import install_logging_redaction
 
@@ -24,11 +26,25 @@ logger = logging.getLogger(__name__)
 settings = get_settings()
 install_logging_redaction(settings)
 
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Load embedding model once at startup and log startup time."""
+    t0 = time.perf_counter()
+    from app.rag.embeddings import get_embedding_model
+
+    get_embedding_model()
+    elapsed = time.perf_counter() - t0
+    logger.info("Embedding model preloaded at startup (lifespan) in %.3fs", elapsed)
+    yield
+
+
 app = FastAPI(
     title="Life-API",
     version="0.1.0",
     docs_url="/docs" if settings.app_env == "dev" else None,
     redoc_url=None,
+    lifespan=lifespan,
 )
 
 # CORS — allow only the dashboard origin
@@ -104,3 +120,4 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 # ---------------------------------------------------------------------------
 app.include_router(health_router)
 app.include_router(ingest_router, prefix="/v1/ingest")
+app.include_router(search_router)

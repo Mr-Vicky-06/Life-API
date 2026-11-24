@@ -7,7 +7,7 @@
 | 1 | Database | Passed | Alembic upgrade/downgrade OK; 5 db tests passed; /health db=true, llm=true | 2026-11-23 | 5872c00 |
 | 2 | Ingestion + Seed | Passed | Seed idempotent (90/340/60/270/53/53); 15 unit/ingest tests passed; full suite 30 passed | 2026-11-23 | 5728ae1 |
 | 3 | Model Gateway + PII | Passed | PII masking & respx wire test OK (0 emails/tokens); 20 security tests passed; live structured Ollama test passed; full suite 51 passed | 2026-11-23 | 0a4b335 |
-| 4 | Embeddings + Hybrid Search | Pending | — | — | — |
+| 4 | Embeddings + Hybrid Search | Passed | Hybrid search RRF (k=60) & Query Rewrite OK; live search checks passed; 74 tests passed | 2026-11-24 | phase-4-search |
 | 5 | Text-to-SQL | Pending | — | — | — |
 | 6 | Metrics + Insights API | Pending | — | — | — |
 | 7 | ReAct Agent | Pending | — | — | — |

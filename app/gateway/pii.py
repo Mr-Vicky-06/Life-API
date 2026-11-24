@@ -8,10 +8,10 @@ from typing import Pattern
 # ---------------------------------------------------------------------------
 # Precompiled Regexes per docs/SECURITY.md §2
 # ---------------------------------------------------------------------------
-# 1. GitHub Tokens: ghp_, gho_, ghu_, ghs_, ghr_ followed by 20+ alphanumeric chars
+# 1. GitHub Tokens: Personal and fine-grained tokens followed by 20+ alphanumeric chars
 GH_TOKEN_RE = re.compile(r"\bgh[pousr]_[A-Za-z0-9]{20,}\b")
 
-# 2. API Keys: sk-... and AIza...
+# 2. API Keys: Service provider keys (OpenAI-style, Google-style, etc.)
 API_KEY_SK_RE = re.compile(r"\bs[k]-[A-Za-z0-9]{16,}\b")
 API_KEY_AIZA_RE = re.compile(r"\bA[I]za[0-9A-Za-z_-]{20,}\b")
 

@@ -19,6 +19,7 @@ class LLMResponse(BaseModel):
     content: str
     model: str
     latency_ms: float
+    output_tokens: int = 0
     raw_response: dict[str, Any] | None = None
 
 
@@ -93,6 +94,7 @@ def call_llm(
                 }
                 if target_model.startswith("ollama/"):
                     kwargs["api_base"] = cfg.llm_api_base
+                    kwargs["num_ctx"] = cfg.llm_num_ctx
                 else:
                     if not cfg.llm_api_base.startswith("http://127.0.0.1:11434") and not cfg.llm_api_base.startswith("http://localhost:11434"):
                         kwargs["api_base"] = cfg.llm_api_base
@@ -110,15 +112,20 @@ def call_llm(
                 else:
                     final_content = raw_content
 
+                usage = getattr(response, "usage", None)
+                output_tokens = getattr(usage, "completion_tokens", 0) if usage else 0
+
                 logger.info(
-                    "LLM call succeeded: model=%s latency=%.1fms",
+                    "LLM call succeeded: model=%s latency=%.1fms tokens=%d",
                     target_model,
                     latency_ms,
+                    output_tokens,
                 )
                 return LLMResponse(
                     content=final_content,
                     model=target_model,
                     latency_ms=latency_ms,
+                    output_tokens=output_tokens,
                 )
             except Exception as exc:
                 latency_ms = (time.perf_counter() - t0) * 1000.0
