@@ -27,6 +27,7 @@ class Settings(BaseSettings):
     llm_model: str = "ollama/llama3.1:8b"
     llm_fallback_model: str = ""
     llm_api_base: str = "http://127.0.0.1:11434"
+    llm_num_ctx: int = 4096
     cloud_llm_enabled: bool = False
     router_model: str = "general"
 

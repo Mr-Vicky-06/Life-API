@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 import logging
 import re
+import time
 from typing import Any, TypeVar
 
 from pydantic import BaseModel, ValidationError
@@ -79,6 +80,10 @@ def call_structured(
     last_raw_content = ""
 
     for attempt in range(max_retries + 1):
+        attempt_num = attempt + 1
+        t_start = time.perf_counter()
+        output_tokens = 0
+
         if attempt > 0:
             # Append feedback message for corrective retry
             error_msg = (
@@ -98,6 +103,7 @@ def call_structured(
                 timeout=timeout,
                 response_format={"type": "json_object"},
             )
+            output_tokens = response.output_tokens
             content = response.content.strip()
             last_raw_content = content
 
@@ -110,15 +116,23 @@ def call_structured(
 
             # Validate Pydantic schema
             validated = model_cls.model_validate(parsed_json)
+            t_attempt = (time.perf_counter() - t_start) * 1000.0
+            logger.info(
+                "call_structured attempt=%d latency=%.1fms output_tokens=%d validation_failed=False",
+                attempt_num,
+                t_attempt,
+                output_tokens,
+            )
             return validated
 
         except (json.JSONDecodeError, ValidationError) as exc:
             last_error = exc
+            t_attempt = (time.perf_counter() - t_start) * 1000.0
             logger.warning(
-                "Structured output parse failed (attempt %d/%d) for %s: %s",
-                attempt + 1,
-                max_retries + 1,
-                model_cls.__name__,
+                "call_structured attempt=%d latency=%.1fms output_tokens=%d validation_failed=True error=%s",
+                attempt_num,
+                t_attempt,
+                output_tokens,
                 exc,
             )
             if attempt < max_retries:
@@ -126,10 +140,12 @@ def call_structured(
                 thread.append({"role": "assistant", "content": last_raw_content})
         except Exception as exc:
             last_error = exc
+            t_attempt = (time.perf_counter() - t_start) * 1000.0
             logger.warning(
-                "Structured call encounter error (attempt %d/%d): %s",
-                attempt + 1,
-                max_retries + 1,
+                "call_structured attempt=%d latency=%.1fms output_tokens=%d validation_failed=True error=%s",
+                attempt_num,
+                t_attempt,
+                output_tokens,
                 exc,
             )
 

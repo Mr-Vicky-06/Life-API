@@ -154,9 +154,16 @@ def generate_seed_data() -> dict[str, Any]:
         # 5. Notes: >= 40 journal notes across 90 days (~55% chance per day)
         if random.random() < 0.58 and journal_idx < 50:
             prompt = JOURNAL_PROMPTS[journal_idx % len(JOURNAL_PROMPTS)]
+            sleep_desc = (
+                "Slept badly last night, felt exhausted and restless."
+                if sleep_hours < 6.0
+                else "Sleep quality was solid and restorative."
+                if sleep_hours >= 7.5
+                else "Normal sleep routine."
+            )
             journal_text = (
                 f"Day {day_offset + 1} ({current_date}): {prompt} "
-                f"Recorded sleep was {sleep_hours} hours with {steps} steps. "
+                f"Recorded sleep was {sleep_hours} hours with {steps} steps. {sleep_desc} "
                 "Maintained focus on incremental delivery and rigorous automated test coverage."
             )
             ts = datetime.datetime.combine(

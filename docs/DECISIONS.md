@@ -10,3 +10,4 @@
 | 2026-11-23 | Python 3.12 venv used while ARCHITECTURE.md pins 3.11 | Existing environment runs Python 3.12.10 cleanly with all dependencies compatible. |
 | 2026-11-23 | Minimal chunking and embeddings modules moved from Phase 4 to Phase 2 | The Phase 2 90-day synthetic seed script requires chunking and embeddings to populate `note_chunks` with real vector embeddings and `tsvector` columns. |
 | 2026-11-23 | Note `content_hash` includes `note_date` and `source_type` (`f"{note_date}\|{source_type}\|{cleaned_content}"`) | Prevents false deduplication collisions across different dates and note sources when notes share similar or identical content structures, while preserving exact daily idempotency. |
+| 2026-11-23 | Journal notes seed includes explicit sleep quality phrasing (`Slept badly...` for sleep < 6h) | Enables meaningful semantic and lexical hybrid search for natural queries like "slept badly" while maintaining 100% deterministic idempotency. |
