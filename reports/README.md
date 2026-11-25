@@ -9,6 +9,7 @@
 | 3 | Model Gateway + PII | Passed | PII masking & respx wire test OK (0 emails/tokens); 20 security tests passed; live structured Ollama test passed; full suite 51 passed | 2026-11-23 | 0a4b335 |
 | 4 | Embeddings + Hybrid Search | Passed | Hybrid search RRF (k=60) & Query Rewrite OK; live search checks passed; 74 tests passed | 2026-11-24 | phase-4-search |
 | 5 | Text-to-SQL | Passed | Step 0A/0B/0C fixed; 75 security/golden/query tests passed; full suite 135 passed; live `/v1/query` OK; bench 6/10 | 2026-11-25 | phase-5-text-to-sql |
+| 5.1 | SQL Accuracy & Safer Summaries | Stopped at D (`qwen2.5-coder:7b` missing) | `llama3.1:8b` 18/22 (9/10 golden, 9/12 heldout); 88 gate tests & 153 full tests passed; safer summaries & stage timings verified; `qwen2.5-coder:7b` HTTP 404 | 2026-11-25 | phase-5-1-sql-accuracy |
 | 6 | Metrics + Insights API | Pending | — | — | — |
 | 7 | ReAct Agent | Pending | — | — | — |
 | 8 | Dashboard | Pending | — | — | — |

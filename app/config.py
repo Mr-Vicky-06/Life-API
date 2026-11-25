@@ -6,8 +6,9 @@ Never import this module from tests directly — use the fixture in conftest.py.
 from __future__ import annotations
 
 import datetime
+from typing import Any
 
-from pydantic import Field, model_validator
+from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 DEFAULT_API_KEY = "change-me"
@@ -34,6 +35,14 @@ class Settings(BaseSettings):
     app_api_key: str = Field(..., description="API key for X-API-Key auth")
     app_timezone: str = "Asia/Kolkata"
     seed_end_date: datetime.date = datetime.date(2026, 11, 23)
+    reference_date: datetime.date | None = None
+
+    @field_validator("reference_date", mode="before")
+    @classmethod
+    def _empty_reference_date_to_none(cls, value: Any) -> Any:
+        if value == "" or (isinstance(value, str) and not value.strip()):
+            return None
+        return value
 
     database_url: str = Field(..., description="Read-write Postgres DSN")
     database_url_ro: str = Field(..., description="Read-only Postgres DSN")

@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import datetime
 import json
+import logging
 from collections.abc import Generator
 from types import SimpleNamespace
 
@@ -92,7 +93,9 @@ def test_query_requires_api_key(query_test_db: Config):
 
 
 def test_query_success_path_and_history_rewrite(
-    query_test_db: Config, monkeypatch: pytest.MonkeyPatch
+    query_test_db: Config,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
 ):
     call_counter = 0
 
@@ -115,10 +118,7 @@ def test_query_success_path_and_history_rewrite(
                     "explanation": "Average sleep on days with commits.",
                 })
         else:
-            # Summary prompt must wrap rows in <data> tags
-            user_msg = kwargs["messages"][-1]["content"]
-            assert "<data>" in user_msg and "</data>" in user_msg
-            content = "Your average sleep on commit days was 7.44 hours."
+            raise AssertionError("1x1 query should use deterministic template without LLM summary")
 
         return SimpleNamespace(
             choices=[SimpleNamespace(message=SimpleNamespace(content=content))],
@@ -128,14 +128,15 @@ def test_query_success_path_and_history_rewrite(
     monkeypatch.setattr("app.gateway.llm.litellm.completion", fake_completion)
 
     client = TestClient(app)
-    resp = client.post(
-        "/v1/query",
-        headers={"X-API-Key": "test-key"},
-        json={
-            "question": "How about it for alice@example.com?",
-            "history": ["What was my average sleep last month?"],
-        },
-    )
+    with caplog.at_level(logging.INFO, logger="app.api.routes_query"):
+        resp = client.post(
+            "/v1/query",
+            headers={"X-API-Key": "test-key"},
+            json={
+                "question": "How about it for alice@example.com?",
+                "history": ["What was my average sleep last month?"],
+            },
+        )
     assert resp.status_code == 200, resp.text
     body = resp.json()
     assert body["standalone_question"] == "What was my average sleep on commit days?"
@@ -144,7 +145,12 @@ def test_query_success_path_and_history_rewrite(
     assert body["row_count"] == 1
     assert "7.44" in body["summary"]
     assert "LIMIT 200" in body["sql"].upper()
-    assert call_counter == 3  # rewrite + generate + summarize
+    assert call_counter == 2  # rewrite + generate (no summary LLM call for 1x1)
+
+    timing_logs = [r.message for r in caplog.records if "v1/query stage timings" in r.message]
+    assert len(timing_logs) == 1
+    assert "generate=" in timing_logs[0] and "summarize=" in timing_logs[0]
+    assert "alice@example.com" not in timing_logs[0]
 
     # query_log persists with PII masked
     logs = _query_logs()
@@ -154,6 +160,49 @@ def test_query_success_path_and_history_rewrite(
     assert latest["endpoint"] == "/v1/query"
     assert "alice@example.com" not in (latest["question_masked"] or "")
     assert "[EMAIL_1]" in (latest["question_masked"] or "")
+
+
+def test_query_multi_row_uses_llm_summary_and_rejects_hallucination(
+    query_test_db: Config, monkeypatch: pytest.MonkeyPatch
+):
+    """Multi-row (>=5 cells) triggers LLM summary and falls back when stub invents numbers."""
+    call_counter = 0
+
+    def fake_completion(**kwargs):
+        nonlocal call_counter
+        call_counter += 1
+        resp_fmt = kwargs.get("response_format")
+        if resp_fmt and resp_fmt.get("type") == "json_object":
+            content = json.dumps({
+                "sql": (
+                    "SELECT category, sum(minutes) AS total "
+                    "FROM v_screen_time GROUP BY 1 ORDER BY 2 DESC"
+                ),
+                "explanation": "Total screen minutes by category.",
+            })
+        else:
+            user_msg = kwargs["messages"][-1]["content"]
+            assert "<data>" in user_msg and "</data>" in user_msg
+            # Invent 88888 which does not exist in rows
+            content = "Productivity took 88888 minutes."
+
+        return SimpleNamespace(
+            choices=[SimpleNamespace(message=SimpleNamespace(content=content))],
+            usage=SimpleNamespace(completion_tokens=20),
+        )
+
+    monkeypatch.setattr("app.gateway.llm.litellm.completion", fake_completion)
+    client = TestClient(app)
+    resp = client.post(
+        "/v1/query",
+        headers={"X-API-Key": "test-key"},
+        json={"question": "Show total screen time minutes per category across all dates"},
+    )
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert call_counter == 2  # generate + summarize (no history -> skip rewrite)
+    assert "88888" not in body["summary"]
+    assert "21324" in body["summary"]
 
 
 def test_query_injection_blocked(query_test_db: Config):

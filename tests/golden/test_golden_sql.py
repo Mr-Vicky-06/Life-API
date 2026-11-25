@@ -49,9 +49,9 @@ def compute_golden_expected() -> dict[int, list[list[Any]]]:
     ]
     exp_1 = [[round(sum(commit_sleeps) / len(commit_sleeps), 2)]]
 
-    # Q2: Total commits last 30 days (2026-10-25..2026-11-23 inclusive -> end_date - 29)
-    cutoff_30 = SEED_END - datetime.timedelta(days=29)
-    exp_2 = [[sum(1 for c in data["commits"] if c["commit_date"] >= cutoff_30)]]
+    # Q2: Total commits last 30 days (A.3 convention: date > ref - 30 AND date <= ref)
+    cutoff_30 = SEED_END - datetime.timedelta(days=30)
+    exp_2 = [[sum(1 for c in data["commits"] if cutoff_30 < c["commit_date"] <= SEED_END)]]
 
     # Q3: Day with most steps
     top_steps = max(data["health"], key=lambda r: r["steps"])
@@ -74,9 +74,9 @@ def compute_golden_expected() -> dict[int, list[list[Any]]]:
         weekly[monday] += commits_by_date[d]
     exp_6 = [[w.isoformat(), cnt] for w, cnt in sorted(weekly.items())]
 
-    # Q7: Total pages read last 14 days (2026-11-10..2026-11-23 inclusive -> end_date - 13)
-    cutoff_14 = SEED_END - datetime.timedelta(days=13)
-    exp_7 = [[sum(r["pages_read"] for r in data["reading"] if r["date"] >= cutoff_14)]]
+    # Q7: Total pages read last 14 days (A.3 convention: date > ref - 14 AND date <= ref)
+    cutoff_14 = SEED_END - datetime.timedelta(days=14)
+    exp_7 = [[sum(r["pages_read"] for r in data["reading"] if cutoff_14 < r["date"] <= SEED_END)]]
 
     # Q8: Top 3 screen-time categories
     exp_8 = [[cat, total] for cat, total in sorted(cat_totals.items(), key=lambda kv: -kv[1])[:3]]
@@ -121,7 +121,7 @@ GOLDEN_CASES: list[tuple[int, str, str]] = [
         2,
         "What were my total commits in the last 30 days?",
         "SELECT coalesce(sum(commits), 0) AS total_commits "
-        "FROM v_daily_summary WHERE date >= DATE '2026-11-23' - 29",
+        "FROM v_daily_summary WHERE date > DATE '2026-11-23' - 30 AND date <= DATE '2026-11-23'",
     ),
     (
         3,
@@ -149,7 +149,7 @@ GOLDEN_CASES: list[tuple[int, str, str]] = [
         7,
         "What are the total pages read in the last 14 days?",
         "SELECT coalesce(sum(pages_read), 0) AS total_pages "
-        "FROM v_reading WHERE date >= DATE '2026-11-23' - 13",
+        "FROM v_reading WHERE date > DATE '2026-11-23' - 14 AND date <= DATE '2026-11-23'",
     ),
     (
         8,
@@ -202,11 +202,13 @@ def seeded_golden_db() -> Generator[dict[int, list[list[Any]]], None, None]:
         settings.database_url,
         settings.database_url_ro,
         settings.seed_end_date,
+        settings.reference_date,
     )
     settings.app_api_key = "test-key"
     settings.database_url = TEST_RW_URL
     settings.database_url_ro = TEST_RO_URL
     settings.seed_end_date = SEED_END
+    settings.reference_date = SEED_END
     reset_engines()
 
     seed_database(end_date=SEED_END)
@@ -219,6 +221,7 @@ def seeded_golden_db() -> Generator[dict[int, list[list[Any]]], None, None]:
         settings.database_url,
         settings.database_url_ro,
         settings.seed_end_date,
+        settings.reference_date,
     ) = orig
     reset_engines()
     with psycopg.connect(ADMIN_CONN_STR, autocommit=True) as conn:

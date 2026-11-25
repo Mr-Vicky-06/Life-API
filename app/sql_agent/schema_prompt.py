@@ -50,12 +50,24 @@ Available PostgreSQL views (read-only allowlist — query ONLY these 4 views):
    - minutes (integer): Minutes spent reading in that session.
 """.strip()
 
-_FEW_SHOT_EXAMPLES = """
-Few-shot PostgreSQL examples (follow these exact view and SQL conventions):
+
+def get_reference_date(settings: Settings | None = None) -> datetime.date:
+    """Return configured REFERENCE_DATE or today's date in APP_TIMEZONE."""
+    cfg = settings or get_settings()
+    if cfg.reference_date is not None:
+        return cfg.reference_date
+    tz = zoneinfo.ZoneInfo(cfg.app_timezone)
+    return datetime.datetime.now(tz).date()
+
+
+def _build_few_shot_block(ref_iso: str) -> str:
+    return f"""
+Few-shot PostgreSQL examples (use these exact view and SQL conventions):
 - Question: What was my average sleep on days I pushed code?
   SQL: SELECT round(avg(sleep_hours),2) AS avg_sleep FROM v_daily_summary WHERE commits > 0;
 - Question: Show my steps for the last 7 days.
-  SQL: SELECT date, steps FROM v_daily_summary WHERE date >= current_date - 7 ORDER BY date;
+  SQL: SELECT date, steps FROM v_daily_summary
+       WHERE date > DATE '{ref_iso}' - 7 AND date <= DATE '{ref_iso}' ORDER BY date;
 - Question: What is the correlation between sleep hours and commits?
   SQL: SELECT round(corr(sleep_hours, commits)::numeric,3) AS r FROM v_daily_summary;
 - Question: Show my weekly commit totals.
@@ -63,6 +75,20 @@ Few-shot PostgreSQL examples (follow these exact view and SQL conventions):
        FROM v_daily_summary GROUP BY 1 ORDER BY 1;
 - Question: What are my top screen time categories?
   SQL: SELECT category, sum(minutes) AS total FROM v_screen_time GROUP BY 1 ORDER BY 2 DESC LIMIT 5;
+- Question (argmax row): Which day had the highest reading_minutes?
+  SQL: SELECT date, reading_minutes FROM v_daily_summary
+       WHERE reading_minutes > 0 ORDER BY reading_minutes DESC LIMIT 1;
+- Question (compare two groups): Compare avg sleep_score when reading_minutes > 60 vs <= 60.
+  SQL: SELECT round(avg(sleep_score) FILTER (WHERE reading_minutes > 60)::numeric, 2) AS high_read,
+              round(avg(sleep_score) FILTER (WHERE reading_minutes <= 60)::numeric, 2) AS low_read
+       FROM v_daily_summary;
+- Question (streak): Longest consecutive-day streak with reading_minutes >= 30?
+  SQL: WITH active_days AS (
+         SELECT date, date - (row_number() OVER (ORDER BY date))::int AS grp
+         FROM v_daily_summary WHERE reading_minutes >= 30
+       ), streaks AS (
+         SELECT count(*) AS streak_len FROM active_days GROUP BY grp
+       ) SELECT coalesce(max(streak_len), 0) AS longest_streak FROM streaks;
 """.strip()
 
 
@@ -73,20 +99,27 @@ def build_schema_prompt(
 ) -> str:
     """Build the system prompt for Text-to-SQL using allowlisted views only."""
     cfg = settings or get_settings()
-    if today is None:
-        tz = zoneinfo.ZoneInfo(cfg.app_timezone)
-        today = datetime.datetime.now(tz).date()
+    ref_date = today or get_reference_date(cfg)
+    ref_iso = ref_date.isoformat()
 
     return (
         "You are a PostgreSQL Text-to-SQL assistant for personal analytics.\n"
-        f"Today's date ({cfg.app_timezone}): {today.isoformat()}\n\n"
+        f"Today's date ({cfg.app_timezone}): {ref_iso}\n"
+        f"Relative-date convention: 'last N days' means N calendar days including {ref_iso}: "
+        f"use `date > DATE '{ref_iso}' - N AND date <= DATE '{ref_iso}'` "
+        f"(never rely on CURRENT_DATE).\n\n"
         f"{_VIEW_SCHEMA_BLOCK}\n\n"
-        f"{_FEW_SHOT_EXAMPLES}\n\n"
+        f"{_build_few_shot_block(ref_iso)}\n\n"
         "Strict SQL rules:\n"
         "- Produce a single PostgreSQL SELECT statement (CTEs with WITH ... SELECT allowed).\n"
         "- Reference ONLY the 4 views listed above without schema prefixes.\n"
+        "- For argmax/argmin ('which day had the highest/lowest X'), use ORDER BY col "
+        "DESC/ASC LIMIT 1 (do NOT use GROUP BY date with MAX/MIN).\n"
+        "- For comparing two groups, use conditional aggregation AVG(x) FILTER (WHERE ...) "
+        "in one SELECT (never self-join a view).\n"
         "- Do NOT use UNION at top level; use CASE WHEN, FILTER, or CTEs in one SELECT.\n"
-        "- Cast floating-point expressions to ::numeric before calling round(val::numeric, n).\n"
+        "- For medians use percentile_cont(0.5) WITHIN GROUP (ORDER BY col).\n"
+        "- Cast numerators to ::numeric before division or calling round(val::numeric, n).\n"
         "- Never include DDL, DML, comments with semicolons, INTO, FOR UPDATE, or LOCK.\n"
         "- Return JSON matching the schema: {\"sql\": \"...\", \"explanation\": \"...\"}."
     )

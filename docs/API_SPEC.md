@@ -16,7 +16,7 @@ Codes: `unauthorized`(401), `validation_error`(422), `sql_rejected`(422), `sql_f
 | POST | `/v1/ingest/{health\|reading\|screen_time}` | multipart CSV upload, field `file` |
 | POST | `/v1/ingest/notes` | JSON list of notes |
 | GET | `/v1/metrics` | query: `from`, `to`, `metrics` (comma list) |
-| POST | `/v1/query` | natural-language question → Text-to-SQL answer |
+| POST | `/v1/query` | natural-language question → Text-to-SQL answer (uses `REFERENCE_DATE` or today; `"last N days"` = `date > ref - N`; small results `< 5` cells or `1x<=3` use deterministic template; larger results verify every cited number appears in returned rows) |
 | POST | `/v1/search` | hybrid search over notes |
 | POST | `/v1/agent/chat` | ReAct agent |
 | GET | `/v1/insights/daily` | structured daily summary (LLM, cached per date) |

@@ -16,7 +16,7 @@ from app.db import Base
 config = context.config
 
 if config.config_file_name is not None:
-    fileConfig(config.config_file_name)
+    fileConfig(config.config_file_name, disable_existing_loggers=False)
 
 # Override sqlalchemy.url from settings (or existing config if passed dynamically)
 if not config.get_main_option("sqlalchemy.url"):
