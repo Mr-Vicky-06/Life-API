@@ -1,13 +1,16 @@
 """Database seed script for 90-day synthetic dataset with pgvector embeddings."""
 from __future__ import annotations
 
+import argparse
 import datetime
 import hashlib
 import random
 from typing import Any
 
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 
+from app.config import get_settings
 from app.db import get_rw_engine
 from app.ingestion.loaders import (
     upsert_github_commits,
@@ -41,30 +44,40 @@ BOOKS = [
     ),
 ]
 
-JOURNAL_PROMPTS = [
+# Strictly sleep-neutral daily activity prompts (sleep narrative is driven by sleep_hours)
+ACTIVITY_PROMPTS = [
     "Reflected on system architecture and async pipeline throughput today.",
-    "Good morning run and solid focus block in the early afternoon.",
-    "Had a deep coding session refactoring PostgreSQL query plans and indexes.",
-    "Woke up feeling well-rested after 8 hours of sleep; focus was noticeably higher.",
-    "Late evening work session. Sleep latency was slightly delayed but productive.",
+    "Worked through API routing logic and solid focus blocks in the afternoon.",
+    "Had a coding session refactoring PostgreSQL query plans and indexes.",
+    "Reviewed structured output schemas and Pydantic validation edge cases.",
+    "Prepared evening engineering notes and triaged open tasks.",
     "Implemented automated schema migrations and verified read-only security constraints.",
     "Reviewed database indexing strategies with pgvector HNSW and tsvector GIN.",
     "Went for an evening walk to decompress after intensive API debugging.",
     "Focused on building modular, idempotent data ingestion pipelines.",
-    "Energy dipped in the mid-afternoon; took a power nap and recovered focus.",
-    "Solid commit velocity today; made good progress on data normalization.",
-    "Reviewed sleep metrics against commit volume; clear correlation with deep sleep.",
-    "Experimented with hybrid search RRF reciprocal rank fusion algorithms.",
+    "Reorganized modular helper utilities and trimmed duplicate query code.",
+    "Made steady progress on data normalization and repository commits.",
+    "Analyzed weekly commit velocity across active repositories.",
+    "Experimented with hybrid search reciprocal rank fusion algorithms.",
     "Organized personal study notes and planned next sprint milestones.",
-    "Productive day overall; minimized social screen time and prioritized reading.",
+    "Minimized social screen time and prioritized deep technical reading.",
 ]
 
 
-def generate_seed_data() -> dict[str, Any]:
-    """Generate deterministic 90-day dataset."""
+def _sleep_narrative(sleep_hours: float) -> str:
+    """Return non-contradictory sleep quality wording derived directly from sleep_hours."""
+    if sleep_hours < 6.0:
+        return "Slept badly last night, felt exhausted and struggled with focus."
+    if sleep_hours >= 7.5:
+        return "Woke up feeling well-rested after solid sleep; focus was noticeably higher."
+    return "Had an average night of sleep and maintained a steady pace."
+
+
+def generate_seed_data(end_date: datetime.date | None = None) -> dict[str, Any]:
+    """Generate deterministic 90-day dataset anchored to a fixed end_date."""
     random.seed(42)
-    today = datetime.date.today()
-    start_date = today - datetime.timedelta(days=89)
+    resolved_end_date = end_date or get_settings().seed_end_date
+    start_date = resolved_end_date - datetime.timedelta(days=89)
 
     health_rows: list[dict[str, Any]] = []
     commit_rows: list[dict[str, Any]] = []
@@ -74,11 +87,13 @@ def generate_seed_data() -> dict[str, Any]:
 
     journal_idx = 0
     reading_note_idx = 0
+    seen_journal_dates: set[datetime.date] = set()
+    seen_reading_note_dates: set[datetime.date] = set()
 
     for day_offset in range(90):
         current_date = start_date + datetime.timedelta(days=day_offset)
 
-        # 1. Health daily: sleep weakly correlated around 7.2h
+        # 1. Health daily: sleep around 7.2h
         sleep_hours = round(random.normalvariate(7.2, 0.9), 2)
         sleep_hours = max(5.0, min(9.5, sleep_hours))
         sleep_score = int(min(100, max(50, int(sleep_hours * 11 + random.randint(-5, 5)))))
@@ -100,7 +115,7 @@ def generate_seed_data() -> dict[str, Any]:
             "source": "csv",
         })
 
-        # 2. Commits: commits ≈ 2 + 3·(sleep−6.5) + noise, min 0
+        # 2. Commits: commits ~ 2 + 3*(sleep - 6.5) + noise, min 0
         noise = random.uniform(-5.0, 5.0)
         raw_commits = 2.0 + 3.0 * (sleep_hours - 6.5) + noise
         commit_count = max(0, int(round(raw_commits)))
@@ -124,7 +139,7 @@ def generate_seed_data() -> dict[str, Any]:
                 "deletions": random.randint(1, 40),
             })
 
-        # 3. Reading log: ~70% of days
+        # 3. Reading log: ~72% of days
         if random.random() < 0.72:
             book_title, _ = random.choice(BOOKS)
             reading_rows.append({
@@ -151,20 +166,15 @@ def generate_seed_data() -> dict[str, Any]:
             "minutes": random.randint(20, 90),
         })
 
-        # 5. Notes: >= 40 journal notes across 90 days (~55% chance per day)
-        if random.random() < 0.58 and journal_idx < 50:
-            prompt = JOURNAL_PROMPTS[journal_idx % len(JOURNAL_PROMPTS)]
-            sleep_desc = (
-                "Slept badly last night, felt exhausted and restless."
-                if sleep_hours < 6.0
-                else "Sleep quality was solid and restorative."
-                if sleep_hours >= 7.5
-                else "Normal sleep routine."
-            )
+        # 5. Journal notes: >= 40 notes, at most one per date, metric-aligned text, no Day N
+        if random.random() < 0.58 and journal_idx < 50 and current_date not in seen_journal_dates:
+            seen_journal_dates.add(current_date)
+            prompt = ACTIVITY_PROMPTS[journal_idx % len(ACTIVITY_PROMPTS)]
+            sleep_desc = _sleep_narrative(sleep_hours)
             journal_text = (
-                f"Day {day_offset + 1} ({current_date}): {prompt} "
-                f"Recorded sleep was {sleep_hours} hours with {steps} steps. {sleep_desc} "
-                "Maintained focus on incremental delivery and rigorous automated test coverage."
+                f"Journal ({current_date.isoformat()}): {sleep_desc} "
+                f"Recorded sleep was {sleep_hours} hours with {steps} steps and "
+                f"{commit_count} commits. {prompt}"
             )
             ts = datetime.datetime.combine(
                 current_date, datetime.time(21, 30), tzinfo=datetime.UTC
@@ -177,14 +187,19 @@ def generate_seed_data() -> dict[str, Any]:
             })
             journal_idx += 1
 
-        # Reading notes: >= 20 reading notes across 90 days (~30% chance per day)
-        if random.random() < 0.35 and reading_note_idx < 25:
+        # 6. Reading notes: >= 20 distinct notes across 90 days
+        if (
+            random.random() < 0.35
+            and reading_note_idx < 25
+            and current_date not in seen_reading_note_dates
+        ):
+            seen_reading_note_dates.add(current_date)
             book_title, insight = BOOKS[reading_note_idx % len(BOOKS)]
             chapter = (reading_note_idx % 10) + 1
             reading_note_text = (
-                f"Reading Notes on {current_date}: {book_title} (Chapter {chapter}). "
+                f"Reading Notes on {current_date.isoformat()}: {book_title} (Chapter {chapter}). "
                 f"Core Takeaway: {insight} "
-                f"Reflection #{reading_note_idx + 1}: Applying these architectural concepts to personal data systems."
+                f"Reflection #{reading_note_idx + 1}: Applying these concepts to data systems."
             )
             ts = datetime.datetime.combine(
                 current_date, datetime.time(22, 15), tzinfo=datetime.UTC
@@ -206,12 +221,34 @@ def generate_seed_data() -> dict[str, Any]:
     }
 
 
-def seed_database() -> None:
+def _truncate_data_tables(session: Session) -> None:
+    """Truncate the 6 seed data tables (note_chunks cascades from notes)."""
+    session.execute(
+        text(
+            "TRUNCATE TABLE note_chunks, notes, screen_time, reading_log, "
+            "github_commits, health_daily RESTART IDENTITY CASCADE"
+        )
+    )
+
+
+def seed_database(
+    *,
+    reset: bool = False,
+    end_date: datetime.date | None = None,
+) -> None:
     """Populate database idempotently with synthetic dataset."""
+    settings = get_settings()
+    if reset and settings.app_env.lower() != "dev":
+        raise RuntimeError(
+            f"Refusing to run seed --reset when APP_ENV='{settings.app_env}' (requires 'dev')."
+        )
+
     engine = get_rw_engine()
-    data = generate_seed_data()
+    data = generate_seed_data(end_date=end_date)
 
     with Session(bind=engine) as session:
+        if reset:
+            _truncate_data_tables(session)
         h_res = upsert_health_daily(session, data["health"])
         c_res = upsert_github_commits(session, data["commits"])
         r_res = upsert_reading_log(session, data["reading"])
@@ -228,5 +265,22 @@ def seed_database() -> None:
         )
 
 
+def _parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Seed Life-API synthetic 90-day dataset.")
+    parser.add_argument(
+        "--reset",
+        action="store_true",
+        help="Truncate data tables before seeding (requires APP_ENV=dev).",
+    )
+    parser.add_argument(
+        "--end-date",
+        type=datetime.date.fromisoformat,
+        default=None,
+        help="Override SEED_END_DATE (YYYY-MM-DD, default 2026-11-23).",
+    )
+    return parser.parse_args()
+
+
 if __name__ == "__main__":
-    seed_database()
+    args = _parse_args()
+    seed_database(reset=args.reset, end_date=args.end_date)

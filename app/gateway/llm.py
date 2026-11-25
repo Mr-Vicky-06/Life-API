@@ -32,8 +32,9 @@ def call_llm(
     timeout: float = 60.0,
     max_retries: int = 2,
     response_format: dict[str, Any] | None = None,
+    temperature: float | None = None,
 ) -> LLMResponse:
-    """Invoke configured LLM with retries, timeout, latency logging, cloud guard, and PII masking."""
+    """Invoke configured LLM with retries, timeout, latency logging, and PII masking."""
     cfg = settings or get_settings()
 
     model = cfg.llm_model
@@ -101,6 +102,19 @@ def call_llm(
 
                 if response_format:
                     kwargs["response_format"] = response_format
+                if temperature is not None:
+                    kwargs["temperature"] = temperature
+
+                if target_model.startswith("ollama/"):
+                    logger.info(
+                        "Ollama call options: model=%s api_base=%s num_ctx=%s "
+                        "format=%s temperature=%s",
+                        target_model,
+                        kwargs.get("api_base"),
+                        kwargs.get("num_ctx"),
+                        (response_format or {}).get("type"),
+                        kwargs.get("temperature"),
+                    )
 
                 response = litellm.completion(**kwargs)
                 latency_ms = (time.perf_counter() - t0) * 1000.0
