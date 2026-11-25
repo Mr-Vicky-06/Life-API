@@ -58,3 +58,25 @@ class ModelGatewayError(GatewayException):
             code="model_gateway_error",
             message=message,
         )
+
+
+class SQLRejected(GatewayException):
+    """Raised when generated SQL fails security or allowlist validation."""
+
+    def __init__(self, message: str = "Generated SQL failed safety validation.") -> None:
+        super().__init__(
+            status_code=422,
+            code="sql_rejected",
+            message=message,
+        )
+
+
+class SQLFailed(GatewayException):
+    """Raised when validated SQL fails database execution after repair attempt."""
+
+    def __init__(self, message: str = "SQL execution failed.") -> None:
+        super().__init__(
+            status_code=422,
+            code="sql_failed",
+            message=message,
+        )

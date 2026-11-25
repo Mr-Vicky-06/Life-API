@@ -5,7 +5,7 @@ import json
 import logging
 import re
 import time
-from typing import Any, TypeVar
+from typing import TypeVar
 
 from pydantic import BaseModel, ValidationError
 
@@ -58,6 +58,7 @@ def call_structured(
     settings: Settings | None = None,
     timeout: float = 60.0,
     max_retries: int = 1,
+    temperature: float | None = 0.0,
 ) -> T:
     """Invoke LLM with JSON mode, validate against model_cls, with 1 corrective retry."""
     cfg = settings or get_settings()
@@ -102,6 +103,7 @@ def call_structured(
                 settings=cfg,
                 timeout=timeout,
                 response_format={"type": "json_object"},
+                temperature=temperature,
             )
             output_tokens = response.output_tokens
             content = response.content.strip()
@@ -118,7 +120,8 @@ def call_structured(
             validated = model_cls.model_validate(parsed_json)
             t_attempt = (time.perf_counter() - t_start) * 1000.0
             logger.info(
-                "call_structured attempt=%d latency=%.1fms output_tokens=%d validation_failed=False",
+                "call_structured attempt=%d latency=%.1fms output_tokens=%d "
+                "validation_failed=False",
                 attempt_num,
                 t_attempt,
                 output_tokens,
@@ -129,7 +132,8 @@ def call_structured(
             last_error = exc
             t_attempt = (time.perf_counter() - t_start) * 1000.0
             logger.warning(
-                "call_structured attempt=%d latency=%.1fms output_tokens=%d validation_failed=True error=%s",
+                "call_structured attempt=%d latency=%.1fms output_tokens=%d "
+                "validation_failed=True error=%s",
                 attempt_num,
                 t_attempt,
                 output_tokens,
@@ -142,7 +146,8 @@ def call_structured(
             last_error = exc
             t_attempt = (time.perf_counter() - t_start) * 1000.0
             logger.warning(
-                "call_structured attempt=%d latency=%.1fms output_tokens=%d validation_failed=True error=%s",
+                "call_structured attempt=%d latency=%.1fms output_tokens=%d "
+                "validation_failed=True error=%s",
                 attempt_num,
                 t_attempt,
                 output_tokens,

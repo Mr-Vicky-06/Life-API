@@ -142,7 +142,7 @@ curl.exe -s http://127.0.0.1:8000/health
 
 #### B. Search Check: "slept badly"
 ```powershell
-curl.exe -s -X POST http://127.0.0.1:8000/v1/search -H "Content-Type: application/json" -H "X-API-Key: change-me" -d '{"query":"slept badly"}'
+curl.exe -s -X POST http://127.0.0.1:8000/v1/search -H "Content-Type: application/json" -H "X-API-Key: ***" -d '{"query":"slept badly"}'
 ```
 **Output:**
 ```json
@@ -208,7 +208,7 @@ curl.exe -s -X POST http://127.0.0.1:8000/v1/search -H "Content-Type: applicatio
 
 #### C. Search Check: "chapter"
 ```powershell
-curl.exe -s -X POST http://127.0.0.1:8000/v1/search -H "Content-Type: application/json" -H "X-API-Key: change-me" -d '{"query":"chapter"}'
+curl.exe -s -X POST http://127.0.0.1:8000/v1/search -H "Content-Type: application/json" -H "X-API-Key: ***" -d '{"query":"chapter"}'
 ```
 **Output:**
 ```json
@@ -354,8 +354,8 @@ git grep -nE "gh[p]_|s[k]-|AI[z]a"
 # 5. Start API server and test live curl endpoints
 .\.venv\Scripts\python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8000
 curl.exe -s http://127.0.0.1:8000/health
-curl.exe -s -X POST http://127.0.0.1:8000/v1/search -H "Content-Type: application/json" -H "X-API-Key: change-me" -d '{"query":"slept badly"}'
-curl.exe -s -X POST http://127.0.0.1:8000/v1/search -H "Content-Type: application/json" -H "X-API-Key: change-me" -d '{"query":"chapter"}'
+curl.exe -s -X POST http://127.0.0.1:8000/v1/search -H "Content-Type: application/json" -H "X-API-Key: ***" -d '{"query":"slept badly"}'
+curl.exe -s -X POST http://127.0.0.1:8000/v1/search -H "Content-Type: application/json" -H "X-API-Key: ***" -d '{"query":"chapter"}'
 ```
 
 ---

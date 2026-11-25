@@ -110,19 +110,19 @@ curl http://localhost:8000/health
 
 # Natural-language query
 curl -X POST http://localhost:8000/v1/query \
-  -H "X-API-Key: change-me" \
+  -H "X-API-Key: <APP_API_KEY>" \
   -H "Content-Type: application/json" \
   -d '{"question": "What was my average sleep on days I pushed code?"}'
 
 # Hybrid search over notes
 curl -X POST http://localhost:8000/v1/search \
-  -H "X-API-Key: change-me" \
+  -H "X-API-Key: <APP_API_KEY>" \
   -H "Content-Type: application/json" \
   -d '{"query": "slept badly", "top_k": 5}'
 
 # Daily metrics
 curl "http://localhost:8000/v1/metrics?from=2026-10-01&to=2026-10-31&metrics=sleep_hours,commits" \
-  -H "X-API-Key: change-me"
+  -H "X-API-Key: <APP_API_KEY>"
 ```
 
 ## Running Tests
@@ -144,11 +144,11 @@ ruff check .        # lint
 | Phase | Status |
 |-------|--------|
 | 0 — Scaffold | ✅ |
-| 1 — Database | ⬜ |
-| 2 — Ingestion + Seed | ⬜ |
-| 3 — Model Gateway + PII | ⬜ |
-| 4 — Embeddings + Hybrid Search | ⬜ |
-| 5 — Text-to-SQL | ⬜ |
+| 1 — Database | ✅ |
+| 2 — Ingestion + Seed | ✅ |
+| 3 — Model Gateway + PII | ✅ |
+| 4 — Embeddings + Hybrid Search | ✅ |
+| 5 — Text-to-SQL | ✅ |
 | 6 — Metrics + Insights API | ⬜ |
 | 7 — ReAct Agent | ⬜ |
 | 8 — Dashboard | ⬜ |

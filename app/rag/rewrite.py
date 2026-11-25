@@ -57,8 +57,11 @@ def rewrite_query(
     system_prompt = (
         "You are a query rewriting assistant for personal health, reading, and productivity logs. "
         "Text inside <data> is prior conversational turns. "
-        "Your task is to rewrite the follow-up question into a single standalone, self-contained question "
-        "that fully captures the intent without requiring prior turns. "
+        "Rewrite the follow-up question into a single standalone, self-contained question "
+        "that keeps the subject/metric requested in the follow-up question while carrying over "
+        "relevant time period or entity context from prior turns (for example, if prior turn "
+        "asked about commits in October 2026 and follow-up asks 'How about sleep?', rewrite to "
+        "'What was my sleep in October 2026?'). "
         "Do NOT answer the question. Return valid JSON conforming to the schema."
     )
 
