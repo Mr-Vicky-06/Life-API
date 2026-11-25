@@ -14,6 +14,7 @@ os.environ.setdefault(
     "postgresql+psycopg://life_ro:life_ro@localhost:5432/life_test",
 )
 
+from app.config import get_settings  # noqa: E402
 from app.main import app  # noqa: E402
 
 
@@ -34,8 +35,9 @@ def test_health_endpoint_schema():
 @respx.mock
 def test_health_endpoint_ollama_present():
     """When Ollama is up and the configured model is present, llm should be True."""
+    model_tag = get_settings().llm_model.removeprefix("ollama/")
     respx.get("http://127.0.0.1:11434/api/tags").mock(
-        return_value=httpx.Response(200, json={"models": [{"name": "llama3.1:8b"}]})
+        return_value=httpx.Response(200, json={"models": [{"name": model_tag}]})
     )
     client = TestClient(app)
     response = client.get("/health")

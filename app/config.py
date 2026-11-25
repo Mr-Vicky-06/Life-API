@@ -47,10 +47,11 @@ class Settings(BaseSettings):
     database_url: str = Field(..., description="Read-write Postgres DSN")
     database_url_ro: str = Field(..., description="Read-only Postgres DSN")
 
-    llm_model: str = "ollama/llama3.1:8b"
+    llm_model: str = "ollama/qwen2.5-coder:7b"
     llm_fallback_model: str = ""
     llm_api_base: str = "http://127.0.0.1:11434"
     llm_num_ctx: int = 4096
+    llm_keep_alive: str = "30m"
     cloud_llm_enabled: bool = False
     router_model: str = "general"
 

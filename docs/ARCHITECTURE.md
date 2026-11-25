@@ -25,7 +25,7 @@ Dependency rule: a layer may only import from layers above it in this list (L4 â
 | Vector | pgvector (`vector(384)`, HNSW cosine index), Python pkg `pgvector` |
 | Embeddings | `sentence-transformers` model `all-MiniLM-L6-v2` (384 dims, runs locally) |
 | LLM gateway | `litellm` |
-| Local LLM | Ollama (default `LLM_MODEL=ollama/llama3.1:8b`) |
+| Local LLM | Ollama (default `LLM_MODEL=ollama/qwen2.5-coder:7b`) |
 | Router LLM (optional) | Needle 3 via `cactus-compute` (`ROUTER_MODEL=needle`, approved optional dependency for tool routing only) |
 | SQL safety | `sqlglot` |
 | HTTP client | `httpx` |
@@ -46,7 +46,7 @@ APP_API_KEY=change-me
 APP_TIMEZONE=Asia/Kolkata
 DATABASE_URL=postgresql+psycopg://life:life@localhost:5432/life
 DATABASE_URL_RO=postgresql+psycopg://life_ro:life_ro@localhost:5432/life
-LLM_MODEL=ollama/llama3.1:8b
+LLM_MODEL=ollama/qwen2.5-coder:7b
 LLM_FALLBACK_MODEL=
 LLM_API_BASE=http://127.0.0.1:11434
 CLOUD_LLM_ENABLED=false

@@ -273,7 +273,11 @@ def query_sql_endpoint(
             t_exec_ms += (time.perf_counter() - ts) * 1000.0
         except SQLAlchemyError as db_err:
             t_exec_ms += (time.perf_counter() - ts) * 1000.0
-            logger.warning("Initial SQL execution failed, attempting 1 repair: %s", db_err)
+            err_snippet = str(db_err).splitlines()[0][:200]
+            logger.warning(
+                "Initial SQL execution failed (error=%s); running 1 repair attempt.",
+                err_snippet,
+            )
 
             ts_rep = time.perf_counter()
             repaired = repair_sql(

@@ -75,7 +75,7 @@ curl http://127.0.0.1:8000/health
 ## LLM Setup
 
 Life-API uses local models for privacy and cost control:
-- **General Model**: Ollama running `llama3.1:8b` (used for Text-to-SQL, summaries, daily insights, query rewriting, and structured JSON).
+- **General Model**: Ollama running `qwen2.5-coder:7b` (used for Text-to-SQL, summaries, daily insights, query rewriting, and structured JSON).
 - **Router Model (optional)**: Needle 3 via `cactus-compute` (used strictly for the ReAct agent's tool selection).
 
 ### 1. Install and Start Ollama
@@ -89,7 +89,7 @@ ollama serve
 ### 2. Pull the General Model
 In a separate terminal, pull the required model:
 ```bash
-ollama pull llama3.1:8b
+ollama pull qwen2.5-coder:7b
 ```
 
 Verify that the model is installed and running:
@@ -100,7 +100,7 @@ curl http://127.0.0.1:11434/api/tags
 
 > **IPv4 vs IPv6 Note:** Set `LLM_API_BASE=http://127.0.0.1:11434` in `.env`. On Windows, `localhost` often resolves to the IPv6 loopback `::1` while Ollama listens on IPv4 `127.0.0.1:11434`, resulting in connection timeouts or refusals. Explicitly using `127.0.0.1` ensures reliable direct connectivity.
 
-When Ollama is running and `llama3.1:8b` is pulled, `GET /health` will report `"llm": true`.
+When Ollama is running and `qwen2.5-coder:7b` is pulled, `GET /health` will report `"llm": true`.
 
 ## API Examples
 

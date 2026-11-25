@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import argparse
+import datetime
+import re
 import statistics
 import subprocess
 import sys
@@ -19,7 +21,6 @@ from app.db import reset_engines, ro_engine
 from app.gateway.guardrails import check_input
 from app.sql_agent.executor import execute_readonly_sql
 from app.sql_agent.generator import generate_sql, repair_sql
-from app.sql_agent.schema_prompt import build_schema_prompt
 from app.sql_agent.validator import validate_sql
 from scripts.seed import seed_database
 from tests.golden.heldout import HELDOUT_CASES, compute_heldout_expected
@@ -30,8 +31,14 @@ ADMIN_CONN_STR = "postgresql://life:life@127.0.0.1:5432/life"
 BENCH_RW_URL = f"postgresql+psycopg://life:life@127.0.0.1:5432/{BENCH_DB_NAME}"
 BENCH_RO_URL = f"postgresql+psycopg://life_ro:life_ro@127.0.0.1:5432/{BENCH_DB_NAME}"
 
-# Q1, Q4, Q6, Q8 directly overlap with the 5 few-shot examples in DATA_AND_RAG.md §7.
+# Questions overlapping with prompt examples (for honest accuracy separation)
 FEW_SHOT_OVERLAP_IDS = {1, 4, 6, 8}
+# Held-out questions whose conventions were clarified in Step 1c prompt tuning
+TUNED_HELDOUT_IDS = {1, 8, 9}
+ORDER_SENSITIVE_GOLDEN = {3, 8}
+ORDER_SENSITIVE_HELDOUT = {7, 10, 11}
+
+_MIDNIGHT_TS_RE = re.compile(r"^(\d{4}-\d{2}-\d{2})T00:00:00(?:[+-]\d{2}:\d{2}|Z)?$")
 
 GOLDEN_QUESTIONS: list[tuple[int, str]] = [
     (1, "What was my average sleep on days with commits > 0?"),
@@ -97,25 +104,45 @@ def _cleanup_bench_db() -> None:
 
 
 def _normalize_scalar(v: Any) -> Any:
-    if isinstance(v, float):
-        return round(v, 3)
+    if isinstance(v, (datetime.datetime,)):
+        if v.time() == datetime.time(0, 0, 0):
+            return v.date().isoformat()
+        return v.isoformat()
+    if isinstance(v, datetime.date):
+        return v.isoformat()
+    if isinstance(v, bool):
+        return v
+    if isinstance(v, (int, float)):
+        return round(float(v), 3)
+    if isinstance(v, str):
+        s = v.strip()
+        m = _MIDNIGHT_TS_RE.match(s)
+        if m:
+            return m.group(1)
+        try:
+            return round(float(s), 3)
+        except ValueError:
+            return s
     return v
+
+
+def _row_sort_key(row: list[Any]) -> list[str]:
+    return [str(_normalize_scalar(x)) for x in row]
 
 
 def _results_equal(
     actual_rows: list[list[Any]],
     expected_rows: list[list[Any]],
     *,
-    order_insensitive: bool = False,
+    order_sensitive: bool = False,
 ) -> bool:
     if len(actual_rows) != len(expected_rows):
         return False
-    if order_insensitive:
-        a_iter = sorted(actual_rows, key=lambda r: [str(x) for x in r])
-        e_iter = sorted(expected_rows, key=lambda r: [str(x) for x in r])
-    else:
-        a_iter, e_iter = actual_rows, expected_rows
-    for a_row, e_row in zip(a_iter, e_iter, strict=True):
+
+    a_rows = actual_rows if order_sensitive else sorted(actual_rows, key=_row_sort_key)
+    e_rows = expected_rows if order_sensitive else sorted(expected_rows, key=_row_sort_key)
+
+    for a_row, e_row in zip(a_rows, e_rows, strict=True):
         if len(a_row) != len(e_row):
             return False
         for av, ev in zip(a_row, e_row, strict=True):
@@ -139,6 +166,8 @@ def _build_question_suite(set_name: str) -> list[dict[str, Any]]:
                 "set": "golden",
                 "label": f"Q{qid:02d}",
                 "overlap": qid in FEW_SHOT_OVERLAP_IDS,
+                "tuned": False,
+                "order_sensitive": qid in ORDER_SENSITIVE_GOLDEN,
                 "question": qtext,
                 "expected": golden_expected[qid],
             })
@@ -148,6 +177,8 @@ def _build_question_suite(set_name: str) -> list[dict[str, Any]]:
                 "set": "heldout",
                 "label": f"H{hid:02d}",
                 "overlap": False,
+                "tuned": hid in TUNED_HELDOUT_IDS,
+                "order_sensitive": hid in ORDER_SENSITIVE_HELDOUT,
                 "question": qtext,
                 "expected": heldout_expected[hid],
             })
@@ -176,7 +207,6 @@ def main() -> None:
     if args.model:
         settings.llm_model = args.model
 
-    # Verify target model exists BEFORE spinning up test DB or running retries
     _verify_ollama_model_exists(settings.llm_api_base, settings.llm_model)
 
     print(
@@ -184,15 +214,19 @@ def main() -> None:
         f"REFERENCE_DATE={SEED_END.isoformat()})..."
     )
     _setup_bench_db()
-    schema_prompt = build_schema_prompt(settings=settings)
     questions = _build_question_suite(args.set)
 
     stats_by_set: dict[str, dict[str, Any]] = {}
     all_latencies: list[float] = []
+    gen_latencies: list[float] = []
     total_exec_ok = 0
     total_matched = 0
     overlap_matched = 0
     overlap_total = 0
+    heldout_untuned_matched = 0
+    heldout_untuned_total = 0
+    heldout_tuned_matched = 0
+    heldout_tuned_total = 0
 
     print(
         f"\n=== REAL LLM TEXT-TO-SQL BENCHMARK (set={args.set}, count={len(questions)}) ==="
@@ -214,12 +248,18 @@ def main() -> None:
                 tag = "[GOLDEN OVERLAP]"
             elif sname == "golden":
                 tag = "[GOLDEN NOVEL]"
+            elif item["tuned"]:
+                heldout_tuned_total += 1
+                tag = "[HELDOUT TUNED]"
             else:
-                tag = "[HELDOUT]"
+                heldout_untuned_total += 1
+                tag = "[HELDOUT UNTUNED]"
 
             t0 = time.perf_counter()
             t_gen = t_val = t_exec = 0.0
             gen_sql = ""
+            repaired_sql = ""
+            repair_err = ""
             exec_ok = False
             matched = False
             err_detail = ""
@@ -228,49 +268,52 @@ def main() -> None:
             try:
                 check_input(item["question"])
                 tg = time.perf_counter()
-                generated = generate_sql(
-                    item["question"], settings=settings, system_prompt=schema_prompt
-                )
+                generated = generate_sql(item["question"], settings=settings)
                 t_gen += (time.perf_counter() - tg) * 1000.0
+                gen_sql = generated.sql
 
                 tv = time.perf_counter()
-                gen_sql = validate_sql(generated.sql)
+                validated_sql = validate_sql(generated.sql)
                 t_val += (time.perf_counter() - tv) * 1000.0
+                gen_sql = validated_sql
 
                 with Session(bind=ro_engine()) as ro_sess:
                     te = time.perf_counter()
                     try:
-                        res = execute_readonly_sql(gen_sql, session=ro_sess)
+                        res = execute_readonly_sql(validated_sql, session=ro_sess)
                         t_exec += (time.perf_counter() - te) * 1000.0
                     except Exception as first_err:
                         t_exec += (time.perf_counter() - te) * 1000.0
+                        repair_err = str(first_err).splitlines()[0][:180]
                         tg2 = time.perf_counter()
                         repaired = repair_sql(
                             item["question"],
-                            gen_sql,
+                            validated_sql,
                             str(first_err),
                             settings=settings,
-                            system_prompt=schema_prompt,
                         )
                         t_gen += (time.perf_counter() - tg2) * 1000.0
+                        repaired_sql = repaired.sql
                         tv2 = time.perf_counter()
-                        gen_sql = validate_sql(repaired.sql)
+                        validated_repaired = validate_sql(repaired.sql)
                         t_val += (time.perf_counter() - tv2) * 1000.0
+                        repaired_sql = validated_repaired
                         te2 = time.perf_counter()
-                        res = execute_readonly_sql(gen_sql, session=ro_sess)
+                        res = execute_readonly_sql(validated_repaired, session=ro_sess)
                         t_exec += (time.perf_counter() - te2) * 1000.0
                 exec_ok = True
                 actual_rows = res.rows
                 matched = _results_equal(
                     actual_rows,
                     item["expected"],
-                    order_insensitive=(item["label"] == "H09"),
+                    order_sensitive=item["order_sensitive"],
                 )
             except Exception as exc:
-                err_detail = str(exc).splitlines()[0][:160]
+                err_detail = str(exc).splitlines()[0][:180]
 
             latency_ms = (time.perf_counter() - t0) * 1000.0
             all_latencies.append(latency_ms)
+            gen_latencies.append(t_gen)
             if exec_ok:
                 total_exec_ok += 1
                 sstats["exec_ok"] += 1
@@ -279,14 +322,22 @@ def main() -> None:
                 sstats["matched"] += 1
                 if item["overlap"]:
                     overlap_matched += 1
+                elif sname == "heldout":
+                    if item["tuned"]:
+                        heldout_tuned_matched += 1
+                    else:
+                        heldout_untuned_matched += 1
 
             print(f"{item['label']} {tag}: {item['question']}")
             print(f"  Generated SQL : {gen_sql or '(none)'}")
+            if repair_err:
+                print(f"  Repair Trigger: {repair_err}")
+                print(f"  Repaired SQL  : {repaired_sql or '(none)'}")
             print(f"  Executed OK   : {exec_ok}" + (f" ({err_detail})" if err_detail else ""))
             mismatch_info = (
                 ""
                 if matched
-                else f" (actual={actual_rows[:2]} vs expected={item['expected'][:2]})"
+                else f" (actual={actual_rows[:3]} vs expected={item['expected'][:3]})"
             )
             print(f"  Result Match  : {matched}{mismatch_info}")
             print(
@@ -296,6 +347,7 @@ def main() -> None:
 
         mean_ms = statistics.mean(all_latencies) if all_latencies else 0.0
         max_ms = max(all_latencies) if all_latencies else 0.0
+        mean_gen_ms = statistics.mean(gen_latencies) if gen_latencies else 0.0
         print("=== BENCHMARK TOTALS ===")
         print(f"Model                        : {settings.llm_model}")
         print(f"Overall Executed OK          : {total_exec_ok}/{len(questions)}")
@@ -308,9 +360,19 @@ def main() -> None:
             )
         if overlap_total:
             print(f"  Golden overlap (Q1,4,6,8)  : {overlap_matched}/{overlap_total}")
+        if heldout_untuned_total:
+            print(
+                f"  Held-out untuned           : "
+                f"{heldout_untuned_matched}/{heldout_untuned_total}"
+            )
+        if heldout_tuned_total:
+            print(
+                f"  Held-out tuned (H01,08,09) : "
+                f"{heldout_tuned_matched}/{heldout_tuned_total}"
+            )
         print(
             f"Latency (mean / max / total) : {mean_ms:.0f} ms / {max_ms:.0f} ms / "
-            f"{sum(all_latencies) / 1000.0:.2f}s"
+            f"{sum(all_latencies) / 1000.0:.2f}s (mean_gen={mean_gen_ms:.0f} ms)"
         )
         print("\n=== ollama ps ===")
         subprocess.run(["ollama", "ps"], check=False)

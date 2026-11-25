@@ -96,6 +96,7 @@ def call_llm(
                 if target_model.startswith("ollama/"):
                     kwargs["api_base"] = cfg.llm_api_base
                     kwargs["num_ctx"] = cfg.llm_num_ctx
+                    kwargs["extra_body"] = {"keep_alive": cfg.llm_keep_alive}
                 else:
                     if not cfg.llm_api_base.startswith("http://127.0.0.1:11434") and not cfg.llm_api_base.startswith("http://localhost:11434"):
                         kwargs["api_base"] = cfg.llm_api_base
@@ -107,11 +108,12 @@ def call_llm(
 
                 if target_model.startswith("ollama/"):
                     logger.info(
-                        "Ollama call options: model=%s api_base=%s num_ctx=%s "
+                        "Ollama call options: model=%s api_base=%s num_ctx=%s keep_alive=%s "
                         "format=%s temperature=%s",
                         target_model,
                         kwargs.get("api_base"),
                         kwargs.get("num_ctx"),
+                        cfg.llm_keep_alive,
                         (response_format or {}).get("type"),
                         kwargs.get("temperature"),
                     )

@@ -259,6 +259,7 @@ def test_query_drop_table_rejected_and_notes_unchanged(
 def test_query_repair_path_succeeds_once(
     query_test_db: Config, monkeypatch: pytest.MonkeyPatch
 ):
+    """Stub hallucinates non-existent column on v_commits; repair prompt injects columns & fixes."""
     sql_attempts = 0
     seen_prompts: list[str] = []
 
@@ -270,21 +271,21 @@ def test_query_repair_path_succeeds_once(
         if resp_fmt and resp_fmt.get("type") == "json_object":
             sql_attempts += 1
             if sql_attempts == 1:
-                # Bad column name -> valid AST on allowlisted view, fails execution in Postgres
+                # Hallucinated column lines_added on v_commits -> DB error triggers repair
                 content = json.dumps({
-                    "sql": "SELECT avg(nonexistent_col) FROM v_daily_summary",
+                    "sql": "SELECT repo, sum(lines_added) FROM v_commits GROUP BY repo",
                     "explanation": "Initial broken SQL.",
                 })
             else:
                 content = json.dumps({
                     "sql": (
-                        "SELECT round(avg(sleep_hours)::numeric, 2) AS avg_sleep "
-                        "FROM v_daily_summary"
+                        "SELECT repo, count(*) AS commit_count "
+                        "FROM v_commits GROUP BY 1 ORDER BY 2 DESC, 1 ASC"
                     ),
-                    "explanation": "Repaired SQL using sleep_hours.",
+                    "explanation": "Repaired SQL using valid v_commits columns.",
                 })
         else:
-            content = "Repaired query computed average sleep successfully."
+            content = "Repaired query counted commits per repository."
 
         return SimpleNamespace(
             choices=[SimpleNamespace(message=SimpleNamespace(content=content))],
@@ -297,12 +298,16 @@ def test_query_repair_path_succeeds_once(
     resp = client.post(
         "/v1/query",
         headers={"X-API-Key": "test-key"},
-        json={"question": "What is my overall average sleep?"},
+        json={"question": "How many commits were pushed to each repository?"},
     )
     assert resp.status_code == 200, resp.text
     assert sql_attempts == 2
-    assert "nonexistent_col" in seen_prompts[1]  # Error feedback includes failed SQL/error
-    assert resp.json()["explanation"] == "Repaired SQL using sleep_hours."
+    # Repair prompt must include failed SQL error AND exact v_commits column list
+    assert "lines_added" in seen_prompts[1]
+    assert "v_commits:" in seen_prompts[1]
+    assert "additions (integer)" in seen_prompts[1]
+    assert "commit_date (date)" in seen_prompts[1]
+    assert resp.json()["explanation"] == "Repaired SQL using valid v_commits columns."
 
 
 def test_query_fails_with_sql_failed_after_one_repair_attempt(
