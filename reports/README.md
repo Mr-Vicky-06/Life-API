@@ -12,5 +12,5 @@
 | 5.1 | SQL Accuracy & Safer Summaries | Passed | Default switched to `ollama/qwen2.5-coder:7b`; bench `21/22` (`9/10` golden, `12/12` heldout, `9/9` untuned, `4.3s` mean); 88 gate, 153 suite, 3 live passed | 2026-11-25 | phase-5-1-complete |
 | 6 | Metrics + Insights API | Passed | `/v1/metrics` & `/v1/insights/daily` RO+cached+verified; 11 integration, 4 live (`14.3s` insight), 164 full suite passed; live curls OK | 2026-11-25 | phase-6-complete |
 | 7 | ReAct Agent | Passed | Step 0A/0B fixed; ReAct 3 tools, 5-step cap, 100-session LRU, <data> isolation; 15 agent gate, 5 live, 180 full suite passed; bench 14/15; 2-turn curl OK | 2026-11-25 | phase-7-complete |
-| 8 | Dashboard | Pending | — | — | — |
+| 8 | Dashboard | Passed | `/v1/screen-time` curl + 6 metrics + 11 dashboard unit/AppTest + 193 full suite passed; Playwright 5-view visual check (0 console errors) | 2026-11-25 | phase-8-complete |
 | 9 | Hardening | Pending | — | — | — |

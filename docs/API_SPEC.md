@@ -16,6 +16,7 @@ Codes: `unauthorized`(401), `not_found`(404), `validation_error`(422), `sql_reje
 | POST | `/v1/ingest/{health\|reading\|screen_time}` | multipart CSV upload, field `file` |
 | POST | `/v1/ingest/notes` | JSON list of notes |
 | GET | `/v1/metrics` | query: `from`, `to`, `metrics` (comma list) |
+| GET | `/v1/screen-time` | query: `from`, `to` → `[{"category": str, "minutes": int}]` ordered desc |
 | POST | `/v1/query` | natural-language question → Text-to-SQL answer (uses `REFERENCE_DATE` or today; `"last N days"` = `date > ref - N`; small results `< 5` cells or `1x<=3` use deterministic template; larger results verify every cited number appears in returned rows) |
 | POST | `/v1/search` | hybrid search over notes |
 | POST | `/v1/agent/chat` | ReAct agent |
@@ -29,6 +30,9 @@ class IngestResult(BaseModel):
 class MetricsResponse(BaseModel):
     from_date: date; to_date: date
     rows: list[dict[str, float | int | str | None]]   # one per day, only requested metrics
+
+class ScreenTimeCategory(BaseModel):
+    category: str; minutes: int
 
 class QueryRequest(BaseModel):
     question: str = Field(min_length=3, max_length=500)

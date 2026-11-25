@@ -3,12 +3,15 @@
     Development runner for Life-API.
 .DESCRIPTION
     Activates virtual environment, verifies or starts database container,
-    and starts the Uvicorn development server on 127.0.0.1:8000.
+    and starts the Uvicorn API server on 127.0.0.1:8000 (or the Streamlit dashboard
+    on 127.0.0.1:8501 with -Dashboard).
 #>
 [CmdletBinding()]
 param(
     [string]$HostAddress = "127.0.0.1",
-    [int]$Port = 8000
+    [int]$Port = 8000,
+    [switch]$Dashboard,
+    [int]$DashboardPort = 8501
 )
 
 $ErrorActionPreference = "Stop"
@@ -57,6 +60,11 @@ if ($dockerCmd) {
     Write-Warning "==> Docker not found on PATH. Ensure PostgreSQL 16 + pgvector is running locally or configured via DATABASE_URL."
 }
 
-# 3. Start Uvicorn development server
-Write-Host "==> Starting Uvicorn API server on http://${HostAddress}:${Port}..."
-python -m uvicorn app.main:app --host $HostAddress --port $Port --reload
+# 3. Start Uvicorn API server or Streamlit dashboard
+if ($Dashboard) {
+    Write-Host "==> Starting Streamlit dashboard on http://${HostAddress}:${DashboardPort}..."
+    python -m streamlit run dashboard/app.py --server.address $HostAddress --server.port $DashboardPort
+} else {
+    Write-Host "==> Starting Uvicorn API server on http://${HostAddress}:${Port}..."
+    python -m uvicorn app.main:app --host $HostAddress --port $Port --reload
+}
