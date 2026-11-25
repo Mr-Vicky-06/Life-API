@@ -58,7 +58,7 @@ class AgentStep(BaseModel):
     action_input: dict; observation: str | None = None
 
 class AgentResponse(BaseModel):
-    answer: str; steps: list[AgentStep]; model: str
+    answer: str; steps: list[AgentStep]; model: str; session_id: str | None = None
 
 class DailyInsight(BaseModel):
     timestamp: date
@@ -68,11 +68,11 @@ class DailyInsight(BaseModel):
 ```
 Sample `/v1/insights/daily` response:
 ```json
-{ "timestamp": "2026-11-02", "summary": "High productivity day aligned with 8.2 hours of sleep.",
+{ "timestamp": "2026-11-02", "summary": "On 2026-11-02, high productivity aligned with 8.2 hours of sleep.",
   "metrics": {"sleep_hours": 8.2, "github_commits": 14, "reading_minutes": 45},
-  "insights": "Commit frequency peaked after a high-sleep night." }
+  "insights": "Commit frequency was above the prior weekly average." }
 ```
-`metrics` numbers MUST come from the database, not the LLM; the LLM only writes `summary` and `insights`.
+`metrics` numbers MUST come from the database, not the LLM; the LLM only writes `summary` and `insights`. The 7-day baseline averages cover the 7 calendar days strictly BEFORE the requested date (`[date - 7, date)`), and comparison facts (`value`, `avg_7d`, `direction` within +/-10% band, `delta`) are precomputed in code; narratives must describe the date in past tense and never use `today` or `tonight`.
 
 ## Structured Output Contract (`gateway/structured.py`)
 `call_structured(model_cls, messages) -> model_cls`:

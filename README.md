@@ -127,6 +127,12 @@ curl "http://localhost:8000/v1/metrics?from=2026-10-01&to=2026-10-31&metrics=sle
 # Daily insights
 curl "http://localhost:8000/v1/insights/daily?date=2026-11-02" \
   -H "X-API-Key: <APP_API_KEY>"
+
+# ReAct agent chat
+curl -X POST http://localhost:8000/v1/agent/chat \
+  -H "X-API-Key: <APP_API_KEY>" \
+  -H "Content-Type: application/json" \
+  -d '{"message": "What was my average sleep on days I pushed code?", "session_id": "demo1"}'
 ```
 
 ## Running Tests
@@ -154,6 +160,6 @@ ruff check .        # lint
 | 4 — Embeddings + Hybrid Search | ✅ |
 | 5 — Text-to-SQL | ✅ |
 | 6 — Metrics + Insights API | ✅ |
-| 7 — ReAct Agent | ⬜ |
+| 7 — ReAct Agent | ✅ |
 | 8 — Dashboard | ⬜ |
 | 9 — Hardening | ⬜ |

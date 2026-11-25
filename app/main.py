@@ -12,6 +12,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
+from app.api.routes_agent import router as agent_router
 from app.api.routes_health import router as health_router
 from app.api.routes_ingest import router as ingest_router
 from app.api.routes_insights import router as insights_router
@@ -132,3 +133,4 @@ app.include_router(metrics_router)
 app.include_router(insights_router)
 app.include_router(search_router)
 app.include_router(query_router)
+app.include_router(agent_router)
