@@ -198,6 +198,11 @@ def _parse_args() -> argparse.Namespace:
         default=None,
         help="Override LLM_MODEL (e.g. ollama/llama3.1:8b or ollama/qwen2.5-coder:7b).",
     )
+    parser.add_argument(
+        "--only",
+        default=None,
+        help="Optional comma-separated question labels to run (e.g. Q06 or Q06,H01).",
+    )
     return parser.parse_args()
 
 
@@ -215,6 +220,9 @@ def main() -> None:
     )
     _setup_bench_db()
     questions = _build_question_suite(args.set)
+    if args.only:
+        wanted = {lbl.strip().upper() for lbl in args.only.split(",") if lbl.strip()}
+        questions = [q for q in questions if q["label"].upper() in wanted]
 
     stats_by_set: dict[str, dict[str, Any]] = {}
     all_latencies: list[float] = []

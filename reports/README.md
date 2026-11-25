@@ -10,7 +10,7 @@
 | 4 | Embeddings + Hybrid Search | Passed | Hybrid search RRF (k=60) & Query Rewrite OK; live search checks passed; 74 tests passed | 2026-11-24 | phase-4-search |
 | 5 | Text-to-SQL | Passed | Step 0A/0B/0C fixed; 75 security/golden/query tests passed; full suite 135 passed; live `/v1/query` OK; bench 6/10 | 2026-11-25 | phase-5-text-to-sql |
 | 5.1 | SQL Accuracy & Safer Summaries | Passed | Default switched to `ollama/qwen2.5-coder:7b`; bench `21/22` (`9/10` golden, `12/12` heldout, `9/9` untuned, `4.3s` mean); 88 gate, 153 suite, 3 live passed | 2026-11-25 | phase-5-1-complete |
-| 6 | Metrics + Insights API | Pending | — | — | — |
+| 6 | Metrics + Insights API | Passed | `/v1/metrics` & `/v1/insights/daily` RO+cached+verified; 11 integration, 4 live (`14.3s` insight), 164 full suite passed; live curls OK | 2026-11-25 | phase-6-complete |
 | 7 | ReAct Agent | Pending | — | — | — |
 | 8 | Dashboard | Pending | — | — | — |
 | 9 | Hardening | Pending | — | — | — |

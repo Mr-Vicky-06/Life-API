@@ -6,7 +6,7 @@ Base: `http://localhost:8000`. Every `/v1/*` route requires header `X-API-Key: <
 ```json
 { "error": { "code": "sql_rejected", "message": "Only SELECT statements are allowed.", "request_id": "uuid" } }
 ```
-Codes: `unauthorized`(401), `validation_error`(422), `sql_rejected`(422), `sql_failed`(422), `guardrail_blocked`(400), `llm_unavailable`(503), `llm_bad_output`(502), `internal`(500). Never leak stack traces or secrets.
+Codes: `unauthorized`(401), `not_found`(404), `validation_error`(422), `sql_rejected`(422), `sql_failed`(422), `guardrail_blocked`(400), `llm_unavailable`(503), `llm_bad_output`(502), `internal`(500). Never leak stack traces or secrets.
 
 ## Endpoints
 | Method | Path | Purpose |

@@ -123,6 +123,10 @@ curl -X POST http://localhost:8000/v1/search \
 # Daily metrics
 curl "http://localhost:8000/v1/metrics?from=2026-10-01&to=2026-10-31&metrics=sleep_hours,commits" \
   -H "X-API-Key: <APP_API_KEY>"
+
+# Daily insights
+curl "http://localhost:8000/v1/insights/daily?date=2026-11-02" \
+  -H "X-API-Key: <APP_API_KEY>"
 ```
 
 ## Running Tests
@@ -149,7 +153,7 @@ ruff check .        # lint
 | 3 — Model Gateway + PII | ✅ |
 | 4 — Embeddings + Hybrid Search | ✅ |
 | 5 — Text-to-SQL | ✅ |
-| 6 — Metrics + Insights API | ⬜ |
+| 6 — Metrics + Insights API | ✅ |
 | 7 — ReAct Agent | ⬜ |
 | 8 — Dashboard | ⬜ |
 | 9 — Hardening | ⬜ |
