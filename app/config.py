@@ -54,6 +54,7 @@ class Settings(BaseSettings):
     llm_keep_alive: str = "30m"
     cloud_llm_enabled: bool = False
     router_model: str = "general"
+    agent_timeout_s: float = 90.0
 
     embed_model: str = "sentence-transformers/all-MiniLM-L6-v2"
 

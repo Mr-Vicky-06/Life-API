@@ -153,6 +153,11 @@ def test_insights_numbers_match_db_cache_hit_and_no_note_text_in_prompt(
 
     sys_txt, usr_txt = captured_prompts[0]
     combined_prompt = f"{sys_txt or ''}\n{usr_txt or ''}"
+    assert target_date.isoformat() in combined_prompt
+    assert "comparison_facts" in combined_prompt
+    assert "avg_7d" in combined_prompt
+    assert "direction" in combined_prompt
+    assert "delta" in combined_prompt
     for note_content in sample_notes:
         snippet = note_content[:40].strip()
         if snippet:
@@ -303,8 +308,15 @@ def test_insights_llm_down_returns_200_template_without_caching(
 @pytest.mark.live
 def test_live_daily_insight(insights_test_db: Config):
     """Live Ollama test: real model generates DailyInsight for 2026-11-02."""
+    from app.api.routes_insights import _fetch_daily_numbers, compute_comparison_facts
+    from app.db import ro_engine
+
     target_date = datetime.date(2026, 11, 2)
     db_metrics = _db_day_metrics(target_date)
+    with Session(bind=ro_engine()) as ro_sess:
+        m, avgs = _fetch_daily_numbers(ro_sess, target_date)
+        facts = compute_comparison_facts(m, avgs)
+
     client = TestClient(app)
 
     t0 = time.perf_counter()
@@ -315,5 +327,49 @@ def test_live_daily_insight(insights_test_db: Config):
     parsed = DailyInsight.model_validate(resp.json())
     assert parsed.timestamp == target_date
     assert parsed.metrics == db_metrics
+    assert "today" not in parsed.summary.lower()
+    assert "today" not in parsed.insights.lower()
+    assert "tonight" not in parsed.summary.lower()
+    assert "tonight" not in parsed.insights.lower()
+    print(f"LIVE 2026-11-02 FACTS: {facts}")
     print(f"LIVE DAILY INSIGHT ({latency_ms:.0f} ms): {resp.text}")
     assert latency_ms > 0.0
+
+
+def test_insights_today_or_tonight_falls_back_to_template_without_caching(
+    insights_test_db: Config,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    target_date = datetime.date(2026, 11, 2)
+    db_metrics = _db_day_metrics(target_date)
+    calls = 0
+
+    def present_tense_llm(**kwargs):
+        nonlocal calls
+        calls += 1
+        return LLMResponse(
+            content=(
+                f'{{"summary": "Today you walked {db_metrics["steps"]} steps and slept well.", '
+                f'"insights": "Great effort tonight after '
+                f'{db_metrics["github_commits"]} commits."}}'
+            ),
+            model="stub-model",
+            latency_ms=10.0,
+        )
+
+    monkeypatch.setattr("app.gateway.structured.call_llm", present_tense_llm)
+    client = TestClient(app)
+
+    resp1 = client.get("/v1/insights/daily?date=2026-11-02", headers={"X-API-Key": "test-key"})
+    assert resp1.status_code == 200
+    parsed1 = DailyInsight.model_validate(resp1.json())
+    assert "today" not in parsed1.summary.lower()
+    assert "tonight" not in parsed1.insights.lower()
+    assert parsed1.summary.startswith("On 2026-11-02")
+    assert str(db_metrics["steps"]) in parsed1.summary
+    assert calls == 1
+
+    # Fallback was NOT cached
+    resp2 = client.get("/v1/insights/daily?date=2026-11-02", headers={"X-API-Key": "test-key"})
+    assert resp2.status_code == 200
+    assert calls == 2

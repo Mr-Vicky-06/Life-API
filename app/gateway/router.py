@@ -1,15 +1,20 @@
 """Tool router interface and backends for the ReAct agent.
 
 Provides the RouterBackend protocol and the default GeneralLLMRouter (using the
-primary Ollama model). NeedleRouter was evaluated in spike_needle.py but rejected
-due to falling short of the accuracy threshold (85.0% < 90.0%).
+primary Ollama model through app/gateway/llm.py). NeedleRouter was evaluated in
+spike_needle.py but rejected due to falling short of threshold (85.0% < 90.0%).
 """
 from __future__ import annotations
 
 import json
+import logging
 from typing import Any, Protocol, runtime_checkable
 
 from app.config import Settings, get_settings
+from app.gateway.llm import call_llm
+from app.gateway.structured import repair_json
+
+logger = logging.getLogger(__name__)
 
 
 @runtime_checkable
@@ -23,19 +28,14 @@ class RouterBackend(Protocol):
     ) -> dict[str, Any]:
         """Select a tool action given user message and tool definitions.
 
-        Args:
-            message: Natural language query or user turn.
-            tools: List of tool specification dictionaries.
-
         Returns:
-            Dict in the format {"action": str, "action_input": dict}.
-            If no tool is required, action should be "final" or "none".
+            Dict in the format {"thought": str (optional), "action": str, "action_input": dict}.
         """
         ...
 
 
 class GeneralLLMRouter:
-    """Default tool router powered by the general Ollama model via LiteLLM."""
+    """Default tool router powered by the configured general LLM via gateway/llm.py."""
 
     def __init__(self, settings: Settings | None = None) -> None:
         self.settings = settings or get_settings()
@@ -44,39 +44,62 @@ class GeneralLLMRouter:
         self,
         message: str,
         tools: list[dict[str, Any]],
+        *,
+        system: str | None = None,
+        messages: list[dict[str, str]] | None = None,
+        timeout: float = 60.0,
+        raise_on_error: bool = False,
     ) -> dict[str, Any]:
-        """Route to an appropriate tool using structured prompt instructions."""
-        import litellm
-
+        """Route to tool or final response returning thought, action, and action_input."""
         tool_names = [t.get("name") for t in tools if isinstance(t, dict)]
-        system_prompt = (
+        sys_prompt = system or (
             "You are a tool router. Choose exactly one action from: "
-            + ", ".join(tool_names)
-            + ", or 'final'. Return JSON: {\"action\": \"...\", \"action_input\": {...}}"
+            + ", ".join(str(name) for name in tool_names)
+            + ', or \'final\'. Return JSON: {"thought": "...", "action": "...", '
+            '"action_input": {...}}'
+        )
+
+        outbound = (
+            list(messages) if messages is not None else [{"role": "user", "content": message}]
         )
 
         try:
-            response = litellm.completion(
-                model=self.settings.llm_model,
-                api_base=self.settings.llm_api_base,
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": message},
-                ],
-                temperature=0.0,
+            response = call_llm(
+                messages=outbound,
+                system=sys_prompt,
+                settings=self.settings,
+                timeout=timeout,
+                max_retries=1,
                 response_format={"type": "json_object"},
+                temperature=0.0,
             )
-            content = response.choices[0].message.content or "{}"
-            parsed = json.loads(content)
-            if "action" in parsed and "action_input" in parsed:
+            cleaned = repair_json(response.content or "{}")
+            parsed = json.loads(cleaned)
+            if isinstance(parsed, dict) and "action" in parsed:
+                raw_input = parsed.get("action_input")
+                if isinstance(raw_input, dict):
+                    action_input: dict[str, Any] = raw_input
+                elif raw_input is None:
+                    action_input = {}
+                else:
+                    action_input = {"_invalid_action_input": raw_input}
                 return {
+                    "thought": str(parsed.get("thought") or ""),
                     "action": str(parsed["action"]),
-                    "action_input": dict(parsed["action_input"]),
+                    "action_input": action_input,
                 }
-        except Exception:
-            pass
-
-        return {"action": "final", "action_input": {"answer": message}}
+            raise ValueError("Router output JSON missing 'action' field.")
+        except Exception as exc:
+            if raise_on_error:
+                raise
+            logger.warning(
+                "Router selection failed (%s); falling back to final.", type(exc).__name__
+            )
+            return {
+                "thought": "",
+                "action": "final",
+                "action_input": {"answer": message},
+            }
 
 
 def get_router(settings: Settings | None = None) -> RouterBackend:
