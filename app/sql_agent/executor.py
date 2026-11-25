@@ -24,7 +24,7 @@ class SQLExecutionResult:
     row_count: int
 
 
-def _to_json_safe(value: Any) -> Any:
+def to_json_safe(value: Any) -> Any:
     """Convert Postgres/Python scalars into JSON-serializable primitives."""
     if value is None:
         return None
@@ -39,6 +39,9 @@ def _to_json_safe(value: Any) -> Any:
     if isinstance(value, (bytes, bytearray, memoryview)):
         return bytes(value).decode("utf-8", errors="replace")
     return str(value)
+
+
+_to_json_safe = to_json_safe
 
 
 def execute_readonly_sql(

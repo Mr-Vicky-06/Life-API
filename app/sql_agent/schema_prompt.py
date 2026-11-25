@@ -110,33 +110,81 @@ def get_reference_date(settings: Settings | None = None) -> datetime.date:
 
 
 _STATIC_FEW_SHOT_EXAMPLES = """
-Few-shot PostgreSQL examples (use these exact view and SQL conventions):
-- Question: What was my average sleep on days I pushed code?
-  SQL: SELECT round(avg(sleep_hours),2) AS avg_sleep FROM v_daily_summary WHERE commits > 0;
-- Question (relative window): Show my steps for the last 7 days ending on REFERENCE_DATE.
-  SQL: SELECT date, steps FROM v_daily_summary
-       WHERE date > DATE '<REFERENCE_DATE>' - 7 AND date <= DATE '<REFERENCE_DATE>' ORDER BY date;
-- Question: What is the correlation between sleep hours and commits?
-  SQL: SELECT round(corr(sleep_hours, commits)::numeric,3) AS r FROM v_daily_summary;
-- Question: Show my weekly commit totals.
-  SQL: SELECT date_trunc('week', date)::date AS week, sum(commits) AS commits
-       FROM v_daily_summary GROUP BY 1 ORDER BY 1;
-- Question: What are my top screen time categories?
-  SQL: SELECT category, sum(minutes) AS total FROM v_screen_time GROUP BY 1 ORDER BY 2 DESC LIMIT 5;
-- Question (argmax row): Which day had the highest reading_minutes?
-  SQL: SELECT date, reading_minutes FROM v_daily_summary
-       WHERE reading_minutes > 0 ORDER BY reading_minutes DESC LIMIT 1;
-- Question (compare two groups): Compare avg sleep_score when reading_minutes > 60 vs <= 60.
-  SQL: SELECT round(avg(sleep_score) FILTER (WHERE reading_minutes > 60)::numeric, 2) AS high_read,
-              round(avg(sleep_score) FILTER (WHERE reading_minutes <= 60)::numeric, 2) AS low_read
-       FROM v_daily_summary;
-- Question (streak): Longest consecutive-day streak with reading_minutes >= 30?
-  SQL: WITH active_days AS (
-         SELECT date, date - (row_number() OVER (ORDER BY date))::int AS grp
-         FROM v_daily_summary WHERE reading_minutes >= 30
-       ), streaks AS (
-         SELECT count(*) AS streak_len FROM active_days GROUP BY grp
-       ) SELECT coalesce(max(streak_len), 0) AS longest_streak FROM streaks;
+Few-shot PostgreSQL examples (distinct query shapes; never copy filters across blocks):
+
+### Example 1 — Filtered scalar average (`v_daily_summary`)
+Question: What was my average sleep on days I pushed code?
+SQL:
+SELECT round(avg(sleep_hours), 2) AS avg_sleep
+FROM v_daily_summary
+WHERE commits > 0;
+---
+
+### Example 2 — Correlation between two columns (`v_daily_summary`)
+Question: What is the correlation between sleep hours and commits?
+SQL:
+SELECT round(corr(sleep_hours, commits)::numeric, 3) AS r
+FROM v_daily_summary;
+---
+
+### Example 3 — Periodic time rollup over full history (`v_daily_summary`, NO date filter)
+Question: Show weekly commit totals.
+SQL:
+SELECT date_trunc('week', date)::date AS week, sum(commits) AS commits
+FROM v_daily_summary
+GROUP BY 1
+ORDER BY 1;
+---
+
+### Example 4 — Top-N category ranking (`v_screen_time`)
+Question: What are my top screen time categories?
+SQL:
+SELECT category, sum(minutes) AS total
+FROM v_screen_time
+GROUP BY 1
+ORDER BY 2 DESC
+LIMIT 5;
+---
+
+### Example 5 — Single-row argmax (`v_daily_summary`)
+Question: Which day had the highest reading_minutes?
+SQL:
+SELECT date, reading_minutes
+FROM v_daily_summary
+WHERE reading_minutes > 0
+ORDER BY reading_minutes DESC
+LIMIT 1;
+---
+
+### Example 6 — Two-group conditional aggregation (`FILTER`)
+Question: Compare avg sleep_score when reading_minutes > 60 vs <= 60.
+SQL:
+SELECT round(avg(sleep_score) FILTER (WHERE reading_minutes > 60)::numeric, 2) AS high_read,
+       round(avg(sleep_score) FILTER (WHERE reading_minutes <= 60)::numeric, 2) AS low_read
+FROM v_daily_summary;
+---
+
+### Example 7 — Consecutive-day streak (`WITH` + `row_number()`)
+Question: Longest consecutive-day streak with reading_minutes >= 30?
+SQL:
+WITH active_days AS (
+  SELECT date, date - (row_number() OVER (ORDER BY date))::int AS grp
+  FROM v_daily_summary WHERE reading_minutes >= 30
+), streaks AS (
+  SELECT count(*) AS streak_len FROM active_days GROUP BY grp
+)
+SELECT coalesce(max(streak_len), 0) AS longest_streak FROM streaks;
+---
+
+### Example 8 — Relative N-day window (`v_reading`, ONLY when "last N days" is asked)
+Question: Total pages read per book title over the last 5 days ending on Reference Date.
+SQL:
+SELECT title, sum(pages_read) AS total_pages
+FROM v_reading
+WHERE date > DATE '<REFERENCE_DATE>' - 5 AND date <= DATE '<REFERENCE_DATE>'
+GROUP BY title
+ORDER BY total_pages DESC;
+---
 """.strip()
 
 

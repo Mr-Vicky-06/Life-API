@@ -80,3 +80,25 @@ class SQLFailed(GatewayException):
             code="sql_failed",
             message=message,
         )
+
+
+class ValidationError(GatewayException):
+    """Raised when request query parameters fail validation rules."""
+
+    def __init__(self, message: str) -> None:
+        super().__init__(
+            status_code=422,
+            code="validation_error",
+            message=message,
+        )
+
+
+class NotFoundError(GatewayException):
+    """Raised when a requested resource has no matching data."""
+
+    def __init__(self, message: str = "Requested resource was not found.") -> None:
+        super().__init__(
+            status_code=status.HTTP_404_NOT_FOUND,
+            code="not_found",
+            message=message,
+        )
