@@ -10,3 +10,8 @@ class MetricsResponse(BaseModel):
     from_date: datetime.date
     to_date: datetime.date
     rows: list[dict[str, float | int | str | None]]
+
+
+class ScreenTimeCategory(BaseModel):
+    category: str
+    minutes: int

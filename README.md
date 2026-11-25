@@ -52,10 +52,11 @@ streamlit run dashboard/app.py  # → http://localhost:8501
 
 Using the automated development runner (Windows PowerShell):
 ```powershell
-.\scripts\dev.ps1
+.\scripts\dev.ps1             # starts FastAPI on 127.0.0.1:8000
+.\scripts\dev.ps1 -Dashboard  # starts Streamlit dashboard on 127.0.0.1:8501
 ```
 
-Or manually:
+Or manually (in two terminals):
 ```powershell
 # 1. Activate the virtual environment
 .\.venv\Scripts\Activate.ps1
@@ -65,11 +66,15 @@ docker compose up -d db
 
 # 3. Start the API server and keep it running
 python -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
+
+# 4. In a second terminal (with .venv activated), start the Streamlit dashboard
+python -m streamlit run dashboard/app.py
 ```
 
 Verify in another terminal or browser:
 ```powershell
 curl http://127.0.0.1:8000/health
+# Dashboard URL: http://127.0.0.1:8501
 ```
 
 ## LLM Setup
@@ -161,5 +166,5 @@ ruff check .        # lint
 | 5 — Text-to-SQL | ✅ |
 | 6 — Metrics + Insights API | ✅ |
 | 7 — ReAct Agent | ✅ |
-| 8 — Dashboard | ⬜ |
+| 8 — Dashboard | ✅ |
 | 9 — Hardening | ⬜ |

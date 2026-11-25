@@ -167,3 +167,54 @@ def test_metrics_validation_errors_and_sqli_safety(metrics_test_db: Config):
     assert r_sqli.status_code == 422
     assert r_sqli.json()["error"]["code"] == "validation_error"
     assert _notes_count() == before_notes
+
+
+def test_screen_time_requires_api_key(metrics_test_db: Config):
+    client = TestClient(app)
+    resp = client.get("/v1/screen-time?from=2026-11-01&to=2026-11-07")
+    assert resp.status_code == 401
+    assert resp.json()["error"]["code"] == "unauthorized"
+
+
+def test_screen_time_matches_direct_sql_and_validates_range(metrics_test_db: Config):
+    client = TestClient(app)
+    resp = client.get(
+        "/v1/screen-time?from=2026-11-01&to=2026-11-07",
+        headers={"X-API-Key": "test-key"},
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+
+    with Session(bind=rw_engine()) as session:
+        expected_rows = (
+            session.execute(
+                text(
+                    "SELECT category, CAST(SUM(minutes) AS INTEGER) AS minutes "
+                    "FROM v_screen_time "
+                    "WHERE date >= '2026-11-01' AND date <= '2026-11-07' "
+                    "GROUP BY category ORDER BY minutes DESC, category ASC"
+                )
+            )
+            .mappings()
+            .all()
+        )
+
+    assert len(body) == len(expected_rows) > 0
+    for actual, expected in zip(body, expected_rows, strict=True):
+        assert actual["category"] == expected["category"]
+        assert actual["minutes"] == int(expected["minutes"])
+
+    # Invalid ranges -> 422 validation_error
+    r_order = client.get(
+        "/v1/screen-time?from=2026-11-07&to=2026-11-01",
+        headers={"X-API-Key": "test-key"},
+    )
+    assert r_order.status_code == 422
+    assert r_order.json()["error"]["code"] == "validation_error"
+
+    r_span = client.get(
+        "/v1/screen-time?from=2025-01-01&to=2026-01-03",
+        headers={"X-API-Key": "test-key"},
+    )
+    assert r_span.status_code == 422
+    assert r_span.json()["error"]["code"] == "validation_error"
