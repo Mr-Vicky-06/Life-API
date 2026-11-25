@@ -26,6 +26,9 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 settings = get_settings()
 validate_startup_security(settings)
+if not logging.getLogger().handlers:
+    logging.basicConfig(level=logging.INFO)
+logging.getLogger("app").setLevel(logging.INFO)
 install_logging_redaction(settings)
 
 

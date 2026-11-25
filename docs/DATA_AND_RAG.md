@@ -98,16 +98,20 @@ Input: last ≤4 turns + new question. If the question has no self-contained mea
 
 ## 7. Text-to-SQL (`sql_agent/`)
 Pipeline:
-1. `schema_prompt.py` builds the prompt from the 4 allowlisted views (column names, types, one-line meanings) plus 5 few-shot examples and today's date in `APP_TIMEZONE`.
-2. `generator.py` asks the gateway for JSON `{"sql": str, "explanation": str}` (structured output).
-3. `validator.py` (see `SECURITY.md`): parse with sqlglot (dialect `postgres`), exactly one statement, `SELECT` only, tables ⊆ allowlist, no blocked functions, enforce `LIMIT ≤ 200` (add if missing).
-4. `executor.py` runs it with `DATABASE_URL_RO`, `SET LOCAL statement_timeout = '5s'`, read-only transaction.
+1. `schema_prompt.py` builds the prompt from the 4 allowlisted views (column names, types, one-line meanings), generic SQL pattern examples (argmax row, conditional aggregation via `FILTER`, gaps-and-islands streaks), and `REFERENCE_DATE` (defaults to today in `APP_TIMEZONE`). Never mentions base tables.
+   - **Relative-date convention**: `"last N days"` always means `N` calendar days including the reference date: `date > DATE '<ref>' - N AND date <= DATE '<ref>'`.
+2. `generator.py` asks the gateway for JSON `{"sql": str, "explanation": str}` (structured output, `temperature=0.0`).
+3. `validator.py` (see `SECURITY.md`): parse with sqlglot (dialect `postgres`), exactly one statement, `SELECT` only (CTEs allowed), tables ⊆ allowlist, no blocked/`pg_*` functions, no comments with `;`/keywords, no schema prefixes or system catalogs, enforce `LIMIT ≤ 200` (add if missing).
+4. `executor.py` runs it with `DATABASE_URL_RO`, `SET LOCAL statement_timeout = '5s'`, read-only transaction, JSON-safe scalar serialization.
 5. On SQL error: ONE repair attempt (send error text back to the model). Then fail with HTTP 422 `sql_failed`.
-6. Gateway summarizes rows into 1–3 sentences (rows capped to 50 in the prompt).
+6. **Safer summary rules (`routes_query.py`)**:
+   - Results with 0 rows, single row with `<= 3` columns, or `< 5` total cells use a deterministic template summary (no LLM call).
+   - Larger results use gateway summarization (`temperature=0.0`, rows capped at 50, wrapped in `<data>`), followed by numeric verification checking that every number in the summary appears in returned rows (after rounding); mismatches fall back to a deterministic value-listing template.
+7. One `query_log` row is written per request via the RW engine (even on failures), storing `question_masked`, SQL, latency, model, `ok`, and redacted `error`, alongside per-stage timing logs (`generate`, `validate`, `execute`, `summarize`).
 
-Few-shot examples to embed (use exactly these patterns):
+Few-shot examples to embed (use these conventions):
 - avg sleep on commit days → `SELECT round(avg(sleep_hours),2) AS avg_sleep FROM v_daily_summary WHERE commits > 0;`
-- last 7 days steps → `SELECT date, steps FROM v_daily_summary WHERE date >= current_date - 7 ORDER BY date;`
+- last 7 days steps → `SELECT date, steps FROM v_daily_summary WHERE date > DATE '<ref>' - 7 AND date <= DATE '<ref>' ORDER BY date;`
 - correlation → `SELECT round(corr(sleep_hours, commits)::numeric,3) AS r FROM v_daily_summary;`
 - weekly commits → `SELECT date_trunc('week', date)::date AS week, sum(commits) AS commits FROM v_daily_summary GROUP BY 1 ORDER BY 1;`
 - top screen category → `SELECT category, sum(minutes) AS total FROM v_screen_time GROUP BY 1 ORDER BY 2 DESC LIMIT 5;`
