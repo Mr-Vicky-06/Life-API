@@ -38,8 +38,9 @@ pip install -e ".[dev]"
 # 5. Run migrations
 alembic upgrade head
 
-# 6. Seed deterministic demo data (90 days)
-python -m scripts.seed
+# 6. Seed deterministic test data OR load real researched datasets (for Streamlit showcase)
+python -m scripts.seed                      # deterministic 90-day synthetic dataset
+python -m scripts.ingest_real_data --reset  # real GitHub, Zenodo, Fitbit, Goodreads & journal data
 
 # 7. Start the API
 uvicorn app.main:app --reload   # → http://localhost:8000
