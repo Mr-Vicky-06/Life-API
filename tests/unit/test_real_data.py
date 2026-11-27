@@ -1,9 +1,10 @@
-"""Unit tests for real open-dataset parsers, alignment, and safety guards."""
+"""Unit tests for opt-in composite dataset parsers, NULL preservation, and guards."""
 from __future__ import annotations
 
 import datetime
 import json
 import pathlib
+from types import SimpleNamespace
 
 import pytest
 
@@ -22,7 +23,7 @@ from app.ingestion.real_data import (
 from scripts.ingest_real_data import ingest_real_database
 
 
-def test_parse_grouphealth_and_fitbit_and_timeline() -> None:
+def test_parse_grouphealth_and_fitbit_preserve_nulls() -> None:
     sleep_json = json.dumps(
         {
             "duration": 420,
@@ -38,17 +39,25 @@ def test_parse_grouphealth_and_fitbit_and_timeline() -> None:
         f'0,1,s1,sleep,1740191640,"{escaped_sleep}",,0 days 06:30:00,,0.82\n'
         '1,1,s1,steps,1740191640,"{""steps"":9250}",,,,\n'
         '2,1,s1,resting_heart_rate,1740191640,"{""bpm"":58}",,,,\n'
-        '3,1,s1,stress,1740191640,"{""stress"":25}",,,,\n'
+        f'3,1,s2,sleep,1740278040,"{escaped_sleep}",,,,\n'
+        '4,1,s2,steps,1740278040,"{""steps"":4100}",,,,\n'
+        '5,1,s2,heart_rate,1740278040,"{""bpm"":79}",,,,\n'
     )
     gh_recs = parse_grouphealth_csv(gh_csv, uid_order=("1",))
-    assert len(gh_recs) == 1
+    assert len(gh_recs) == 2
     assert gh_recs[0].sleep_hours == pytest.approx(7.0)
     assert gh_recs[0].sleep_score == 82
     assert gh_recs[0].deep_sleep_min == 84
+    assert gh_recs[0].hrv_ms is None
     assert gh_recs[0].resting_hr == 58
     assert gh_recs[0].steps == 9250
     assert gh_recs[0].screen_total_min == 390
     assert gh_recs[0].source == "zenodo_15171250"
+
+    # Second day lacks resting_heart_rate and sleep_rating -> both stay NULL, never fabricated.
+    assert gh_recs[1].sleep_score is None
+    assert gh_recs[1].resting_hr is None
+    assert gh_recs[1].hrv_ms is None
 
     act_csv = (
         "source,participant-id,timestamp,total-steps\n"
@@ -63,16 +72,20 @@ def test_parse_grouphealth_and_fitbit_and_timeline() -> None:
     assert len(fit_recs) == 1
     assert fit_recs[0].sleep_hours == pytest.approx(6.5)
     assert fit_recs[0].steps == 10450
+    assert fit_recs[0].sleep_score is None
+    assert fit_recs[0].deep_sleep_min is None
+    assert fit_recs[0].hrv_ms is None
+    assert fit_recs[0].resting_hr is None
     assert fit_recs[0].source == "fitbit_fitabase"
 
     end_d = datetime.date(2026, 11, 26)
-    timeline = build_health_timeline(gh_recs, fit_recs, end_date=end_d, total_days=2)
+    timeline = build_health_timeline(gh_recs[:1], fit_recs, end_date=end_d, total_days=2)
     assert [r["date"] for r in timeline] == [datetime.date(2026, 11, 25), end_d]
     assert timeline[0]["source"] == "fitbit_fitabase"
     assert timeline[1]["source"] == "zenodo_15171250"
 
 
-def test_screen_time_goodreads_and_vad_parsers() -> None:
+def test_screen_time_goodreads_and_vad_have_no_constructed_linkages() -> None:
     sc_csv = (
         "Date,Usage,Notifications,Times opened,App\n"
         "08/26/2022,40,10,5,Instagram\n"
@@ -95,11 +108,11 @@ def test_screen_time_goodreads_and_vad_parsers() -> None:
             "_screen_total_min": None,
         },
     ]
-    screen_rows = build_screen_time_rows(
-        timeline, social, commit_counts_by_date={datetime.date(2026, 11, 25): 4}
-    )
-    day1_sum = sum(r["minutes"] for r in screen_rows if r["date"] == datetime.date(2026, 11, 25))
-    assert day1_sum == 300
+    screen_rows = build_screen_time_rows(timeline, social)
+    assert screen_rows == [
+        {"date": datetime.date(2026, 11, 25), "category": "Total (unclassified)", "minutes": 300},
+        {"date": datetime.date(2026, 11, 26), "category": "Social", "minutes": 75},
+    ]
 
     gr_csv = (
         "Book Id,Title,Author,Number of Pages,Date Read,My Review\n"
@@ -109,11 +122,13 @@ def test_screen_time_goodreads_and_vad_parsers() -> None:
     )
     books = parse_goodreads_books(gr_csv)
     assert len(books) == 1
+    assert books[0]["minutes"] is None
     assert books[0]["review"] == "Dense & insightful. Must read."
     r_rows, r_notes = build_reading_and_notes(
         books, start_date=datetime.date(2026, 11, 25), end_date=datetime.date(2026, 11, 26)
     )
     assert len(r_rows) == 1 and r_rows[0]["pages_read"] == 616
+    assert r_rows[0]["minutes"] is None
     assert len(r_notes) == 1 and "<br" not in r_notes[0]["content"]
 
     vad_csv = (
@@ -123,14 +138,15 @@ def test_screen_time_goodreads_and_vad_parsers() -> None:
         '"I felt great focus today after morning walk and solid progress reading technical '
         'architecture chapters and wrapping tests cleanly.",0.65,0.2,0.4\n'
     )
-    low, mid, high = parse_vad_journals(vad_csv)
-    assert len(low) == 1 and len(high) == 1 and mid == []
-    j_notes = build_journal_notes(timeline, low, mid, high)
+    entries = parse_vad_journals(vad_csv)
+    assert len(entries) == 2
+    j_notes = build_journal_notes(timeline, entries)
     assert len(j_notes) == 1
-    assert "slept badly" in j_notes[0]["content"].lower()
+    assert "[Sleep:" not in j_notes[0]["content"]
+    assert "Steps:" not in j_notes[0]["content"]
 
 
-def test_local_git_commit_collection_and_reset_guard(
+def test_local_git_commit_collection_and_composite_guards(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     commits, commit_notes = collect_github_commits(
@@ -142,11 +158,12 @@ def test_local_git_commit_collection_and_reset_guard(
     assert all(len(c["sha"]) == 40 for c in commits)
     assert len(commit_notes) >= 1
 
-    from types import SimpleNamespace
+    with pytest.raises(RuntimeError, match="--composite-demo"):
+        ingest_real_database(reset=False)
 
     monkeypatch.setattr(
         "scripts.ingest_real_data.get_settings",
         lambda: SimpleNamespace(app_env="prod"),
     )
     with pytest.raises(RuntimeError, match="APP_ENV"):
-        ingest_real_database(reset=True)
+        ingest_real_database(composite_demo=True, reset=True)

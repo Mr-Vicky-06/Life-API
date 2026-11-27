@@ -154,6 +154,7 @@ def _render_overview_tab(
     start_date: datetime.date | None,
     end_date: datetime.date | None,
     bootstrap_error: DashboardAPIError | None,
+    data_label: str = "Synthetic demo data",
 ) -> None:
     if bootstrap_error is not None:
         st.info("Resolve the API connection error above to load metrics and charts.")
@@ -216,13 +217,15 @@ def _render_overview_tab(
     with chart_left:
         sleep_fig, stats_label = build_sleep_commits_figure(current_rows)
         st.plotly_chart(sleep_fig, width="stretch")
-        st.caption(f"Correlation, not causation ({stats_label})")
+        st.caption(f"Correlation, not causation ({stats_label}) | Data: {data_label}")
     with chart_right:
         steps_fig = build_steps_figure(current_rows)
         st.plotly_chart(steps_fig, width="stretch")
+        st.caption(f"Data: {data_label}")
 
     screen_fig = build_screen_time_figure(screen_rows)
     st.plotly_chart(screen_fig, width="stretch")
+    st.caption(f"Data: {data_label}")
 
 
 def _render_daily_insight_tab(
@@ -461,6 +464,9 @@ def main() -> None:
 
     min_avail, max_avail, default_start, default_end = resolve_date_bounds(available_rows)
 
+    st.sidebar.header("Dataset")
+    st.sidebar.caption(f"Data: {cfg.data_label}")
+
     st.sidebar.header("Filters")
     start_date: datetime.date | None = None
     end_date: datetime.date | None = None
@@ -481,7 +487,7 @@ def main() -> None:
         ["Overview", "Daily Insight", "Search Notes", "AI Chat"]
     )
     with tab_overview:
-        _render_overview_tab(api_url, start_date, end_date, bootstrap_error)
+        _render_overview_tab(api_url, start_date, end_date, bootstrap_error, cfg.data_label)
     with tab_insight:
         _render_daily_insight_tab(api_url, min_avail, max_avail)
     with tab_search:

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import datetime
+import os
 from collections.abc import Generator
 
 import psycopg
@@ -9,7 +10,6 @@ import pytest
 from alembic import command
 from alembic.config import Config
 from fastapi.testclient import TestClient
-from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.config import get_settings
@@ -18,10 +18,11 @@ from app.main import app
 from app.models.notes import Note, NoteChunk
 from app.rag.hybrid import hybrid_search
 
+DB_PORT = os.getenv("DB_PORT", "5432")
 TEST_DB_NAME = "life_test"
-ADMIN_CONN_STR = "postgresql://life:life@127.0.0.1:5432/life"
-TEST_RW_URL = f"postgresql+psycopg://life:life@127.0.0.1:5432/{TEST_DB_NAME}"
-TEST_RO_URL = f"postgresql+psycopg://life_ro:life_ro@127.0.0.1:5432/{TEST_DB_NAME}"
+ADMIN_CONN_STR = f"postgresql://life:life@127.0.0.1:{DB_PORT}/life"
+TEST_RW_URL = f"postgresql+psycopg://life:life@127.0.0.1:{DB_PORT}/{TEST_DB_NAME}"
+TEST_RO_URL = f"postgresql+psycopg://life_ro:life_ro@127.0.0.1:{DB_PORT}/{TEST_DB_NAME}"
 
 
 @pytest.fixture(scope="module")
@@ -57,12 +58,12 @@ def _make_unit_vector(idx: int, dim: int = 384) -> list[float]:
 
 @pytest.fixture(scope="module")
 def seeded_search_notes(setup_search_db: Config) -> dict[str, int]:
-    """Populate life_test with crafted notes demonstrating vector-only, term-only, and fused behavior."""
+    """Populate life_test with notes demonstrating vector-only, term-only, and RRF fusion."""
     engine = get_rw_engine()
     created_ids: dict[str, int] = {}
 
     with Session(engine) as session:
-        # Note 1: Semantic vector match for query (embedding at dim 0), but no keyword "entanglement"
+        # Note 1: Semantic vector match (dim 0), without the keyword "entanglement"
         n1 = Note(
             ts=datetime.datetime(2026, 1, 10, 10, 0, tzinfo=datetime.UTC),
             note_date=datetime.date(2026, 1, 10),
@@ -75,7 +76,10 @@ def seeded_search_notes(setup_search_db: Config) -> dict[str, int]:
         c1 = NoteChunk(
             note_id=n1.id,
             chunk_idx=0,
-            content="[2026-01-10 | journal] Superconducting quantum devices and magnetic flux calculations.",
+            content=(
+                "[2026-01-10 | journal] Superconducting quantum devices and "
+                "magnetic flux calculations."
+            ),
             chunk_metadata={"source_type": "journal"},
             embedding=_make_unit_vector(0),  # Close to query vector (dim 0)
         )
@@ -95,7 +99,10 @@ def seeded_search_notes(setup_search_db: Config) -> dict[str, int]:
         c2 = NoteChunk(
             note_id=n2.id,
             chunk_idx=0,
-            content="[2026-01-20 | reading_note] Exploration of quantum entanglement properties and Bell inequalities.",
+            content=(
+                "[2026-01-20 | reading_note] Exploration of quantum entanglement "
+                "properties and Bell inequalities."
+            ),
             chunk_metadata={"source_type": "reading_note"},
             embedding=_make_unit_vector(50),  # Orthogonal to query
         )
@@ -115,7 +122,10 @@ def seeded_search_notes(setup_search_db: Config) -> dict[str, int]:
         c3 = NoteChunk(
             note_id=n3.id,
             chunk_idx=0,
-            content="[2026-02-01 | journal] Completed routine chores and grocery shopping in the afternoon.",
+            content=(
+                "[2026-02-01 | journal] Completed routine chores and "
+                "grocery shopping in the afternoon."
+            ),
             chunk_metadata={"source_type": "journal"},
             embedding=_make_unit_vector(100),
         )
@@ -127,8 +137,10 @@ def seeded_search_notes(setup_search_db: Config) -> dict[str, int]:
     return created_ids
 
 
-def test_hybrid_search_fusion_differs_and_includes_single_leg_winner(seeded_search_notes: dict[str, int]):
-    """Demonstrate that fused results differ from either leg alone and include single-leg winners."""
+def test_hybrid_search_fusion_differs_and_includes_single_leg_winner(
+    seeded_search_notes: dict[str, int],
+):
+    """Verify fused results differ from single legs alone and include single-leg winners."""
     # Custom embed function returning vector at dim 0
     def mock_embed(texts: list[str]) -> list[list[float]]:
         return [_make_unit_vector(0) for _ in texts]

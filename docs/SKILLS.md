@@ -26,7 +26,7 @@ The following skills from the universal book were reviewed and rejected to keep 
 | Rejected Skill | Reason for Rejection |
 |---|---|
 | `crewai` / `langchain` / `llamaindex` | Conflicted with `ANTIGRAVITY.md` Golden Rule 3 & `ARCHITECTURE.md` Section 5: ReAct agent must be hand-written with no external agent frameworks. |
-| `prisma` / `drizzle` / `typeorm` | Node/TypeScript ORMs not applicable to our pinned Python 3.11 + SQLAlchemy 2.0 stack. |
+| `prisma` / `drizzle` / `typeorm` | Node/TypeScript ORMs not applicable to our pinned Python 3.11+ + SQLAlchemy 2.0 stack. |
 | `pinecone` / `weaviate` / `qdrant` | Conflicted with pinned stack: vector storage is exclusively PostgreSQL 16 + pgvector. |
 | `react` / `nextjs` / `vue` | Frontend framework skills not applicable; dashboard is strictly Streamlit + Plotly. |
 | `kubernetes` / `helm` / `terraform` | Out of scope per `PRD.md` Section 5: no deployment automation or cloud infrastructure orchestration. |

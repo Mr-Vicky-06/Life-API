@@ -40,7 +40,7 @@ class ReadingCSVRow(BaseModel):
     date: datetime.date
     title: str = Field(min_length=1)
     pages_read: int = 0
-    minutes: int = 0
+    minutes: int | None = 0
 
 
 class ScreenTimeCSVRow(BaseModel):

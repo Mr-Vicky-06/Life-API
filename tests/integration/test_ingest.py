@@ -1,6 +1,7 @@
 """Integration tests for data ingestion endpoints, loaders, and seed idempotency."""
 from __future__ import annotations
 
+import os
 from collections.abc import Generator
 
 import httpx
@@ -18,10 +19,11 @@ from app.db import reset_engines
 from app.main import app
 from scripts.seed import seed_database
 
+DB_PORT = os.getenv("DB_PORT", "5432")
 TEST_DB_NAME = "life_test"
-ADMIN_CONN_STR = "postgresql://life:life@127.0.0.1:5432/life"
-TEST_RW_URL = f"postgresql+psycopg://life:life@127.0.0.1:5432/{TEST_DB_NAME}"
-TEST_RO_URL = f"postgresql+psycopg://life_ro:life_ro@127.0.0.1:5432/{TEST_DB_NAME}"
+ADMIN_CONN_STR = f"postgresql://life:life@127.0.0.1:{DB_PORT}/life"
+TEST_RW_URL = f"postgresql+psycopg://life:life@127.0.0.1:{DB_PORT}/{TEST_DB_NAME}"
+TEST_RO_URL = f"postgresql+psycopg://life_ro:life_ro@127.0.0.1:{DB_PORT}/{TEST_DB_NAME}"
 
 
 @pytest.fixture(scope="module")

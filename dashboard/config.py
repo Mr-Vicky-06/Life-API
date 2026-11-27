@@ -15,6 +15,10 @@ class DashboardConfig(BaseSettings):
 
     api_url: str = Field(default="http://127.0.0.1:8000", description="Life-API base URL")
     app_api_key: str = Field(default="", description="API key sent as X-API-Key header")
+    data_label: str = Field(
+        default="Synthetic demo data",
+        description="Explicit dataset provenance label rendered in UI and chart captions",
+    )
 
 
 def get_dashboard_config() -> DashboardConfig:

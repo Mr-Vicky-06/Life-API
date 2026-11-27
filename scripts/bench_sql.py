@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import datetime
+import os
 import re
 import statistics
 import subprocess
@@ -26,10 +27,11 @@ from scripts.seed import seed_database
 from tests.golden.heldout import HELDOUT_CASES, compute_heldout_expected
 from tests.golden.test_golden_sql import SEED_END, compute_golden_expected
 
+DB_PORT = os.getenv("DB_PORT", "5432")
 BENCH_DB_NAME = "life_test"
-ADMIN_CONN_STR = "postgresql://life:life@127.0.0.1:5432/life"
-BENCH_RW_URL = f"postgresql+psycopg://life:life@127.0.0.1:5432/{BENCH_DB_NAME}"
-BENCH_RO_URL = f"postgresql+psycopg://life_ro:life_ro@127.0.0.1:5432/{BENCH_DB_NAME}"
+ADMIN_CONN_STR = f"postgresql://life:life@127.0.0.1:{DB_PORT}/life"
+BENCH_RW_URL = f"postgresql+psycopg://life:life@127.0.0.1:{DB_PORT}/{BENCH_DB_NAME}"
+BENCH_RO_URL = f"postgresql+psycopg://life_ro:life_ro@127.0.0.1:{DB_PORT}/{BENCH_DB_NAME}"
 
 # Questions overlapping with prompt examples (for honest accuracy separation)
 FEW_SHOT_OVERLAP_IDS = {1, 4, 6, 8}

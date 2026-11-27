@@ -42,7 +42,7 @@ SCREEN-TIME:
 
 ## 4. Streamlit Startup & Automated Gate Results
 
-**Streamlit startup log (`task-3853.log`, `python -m streamlit run dashboard/app.py`):**
+**Streamlit startup log (`python -m streamlit run dashboard/app.py`):**
 ```text
 2026-11-25 21:32:32.674 Uvicorn server started on 127.0.0.1:8501
 
@@ -85,19 +85,19 @@ tests/integration/test_dashboard_app.py::test_app_chat_and_search_workflows PASS
 
 ## 5. Visual Verification & `TESTING.md` §6 Checklist
 
-`VISUAL CHECK`: Re-verified live in headless Chromium via Playwright (`http://127.0.0.1:8501`) after populating PostgreSQL with real researched open datasets ([real-data-provenance.md](file:///d:/LIFE_API/reports/real-data-provenance.md)); `browser_console_messages(level="error")` returned `0` errors and `0` warnings across all tested panels.
+`VISUAL CHECK`: Re-verified live in headless Chromium via Playwright (`http://127.0.0.1:8501`) on labeled deterministic synthetic data (`python -m scripts.seed --reset`, `DATA_LABEL="Synthetic demo data"`); `browser_console_messages(level="error")` returned `0` errors and `0` warnings across all tested panels.
 
-Screenshots captured in [reports/phase-8/](file:///d:/LIFE_API/reports/phase-8) (showing real Eindhoven/Fitbit, `Mr-Vicky-06`, Goodreads, ScreenTime-App-Details, and VAD journal data):
-- [overview.png](file:///d:/LIFE_API/reports/phase-8/overview.png): Default 30d window (`2026-10-28` to `2026-11-26`), KPIs (`Avg Sleep 7.29 h`, `Total Commits 83`, `Avg Steps 4,998`, `Total Reading 6,684 min`), Sleep vs Commits OLS scatter (`r = 0.275, n = 30`, `"Correlation, not causation"`), Steps line chart.
-- [screentime.png](file:///d:/LIFE_API/reports/phase-8/screentime.png): Screen time by category bar chart (`Social`, `Productivity`, `Entertainment` descending).
-- [insight.png](file:///d:/LIFE_API/reports/phase-8/insight.png): `"Generate insight"` click for `2026-11-26` rendered summary (`8.27 hours`, `1` commit, `470 minutes` reading, `54` steps, `560 minutes` screen time), comparison insight, and 5 metric cards.
-- [search.png](file:///d:/LIFE_API/reports/phase-8/search.png): Search `"slept tired"` rendered real dated diary hits (`2026-11-23 | journal | score=0.0164`, `2026-10-05 | journal | score=0.0161`).
-- [chat.png](file:///d:/LIFE_API/reports/phase-8/chat.png): Chat `"What was my average sleep on days I pushed code?"` rendered `7.41 hours` and expanded `Steps (2) | Latency: 12633 ms` with the generated SQL (`SELECT ROUND(CAST(AVG(sleep_hours) AS DECIMAL), 2) AS avg_sleep FROM v_daily_summary WHERE commits > 0 LIMIT 200`).
+Screenshots captured in [reports/phase-8/](file:///d:/LIFE_API/reports/phase-8) (showing persistent sidebar `Data: Synthetic demo data` and chart captions):
+- [overview.png](file:///d:/LIFE_API/reports/phase-8/overview.png): Default 30d window (`2026-10-25` to `2026-11-23`), KPIs (`Avg Sleep 7.23 h`, `Total Commits 116`, `Avg Steps 8,546`, `Total Reading 977 min`), Sleep vs Commits OLS scatter (`r = 0.733, n = 30`, `"Correlation, not causation (r = 0.733, n = 30) | Data: Synthetic demo data"`), Steps line chart (`Data: Synthetic demo data`).
+- [screentime.png](file:///d:/LIFE_API/reports/phase-8/screentime.png): Screen time by category bar chart (`Productivity`, `Entertainment`, `Social` descending) with `Data: Synthetic demo data` caption.
+- [insight.png](file:///d:/LIFE_API/reports/phase-8/insight.png): `"Generate insight"` click for `2026-11-23` rendered summary (`6.12 hours`, `1` commit, `34` minutes reading, `12,039` steps, `283` minutes screen time), comparison insight, and 5 metric cards.
+- [search.png](file:///d:/LIFE_API/reports/phase-8/search.png): Search `"slept badly"` rendered synthetic dated diary hits (`2026-09-20 | journal | score=0.0328`, `2026-10-05 | journal | score=0.0323`).
+- [chat.png](file:///d:/LIFE_API/reports/phase-8/chat.png): Chat `"What was my average sleep on days I pushed code?"` rendered `7.44 hours` and expanded `Steps (2) | Latency: 13588 ms` with the generated SQL (`SELECT ROUND(CAST(AVG(sleep_hours) AS DECIMAL), 2) AS avg_sleep FROM v_daily_summary WHERE commits > 0 LIMIT 200`).
 
 ### `docs/TESTING.md` §6 Checklist Status
-- [x] KPIs populated after ingest (verified live in `overview.png` + Playwright snapshot)
-- [x] Scatter chart shows sleep vs commits with trendline (verified live in `overview.png`, `r = 0.275, n = 30`)
-- [x] Date range filter changes charts (verified live in Playwright by selecting `2026-09-01..2026-09-30` in sidebar calendar)
+- [x] KPIs populated after seed (verified live in `overview.png` + Playwright snapshot)
+- [x] Scatter chart shows sleep vs commits with trendline (verified live in `overview.png`, `r = 0.733, n = 30`)
+- [x] Date range filter changes charts (verified on `phase-8-dashboard` via `2026-09-01..2026-09-30` range selection)
 - [x] Chat: `"What was my average sleep on days I pushed code?"` returns an answer with the SQL expander visible (verified live in `chat.png`)
 - [x] Search box returns snippets with dates (verified live in `search.png`)
 - [ ] Wrong API key shows a clear error, not a stack trace (*Verified by automated `respx` + `AppTest` tests in [test_dashboard_client.py](file:///d:/LIFE_API/tests/unit/test_dashboard_client.py) and [test_dashboard_app.py](file:///d:/LIFE_API/tests/integration/test_dashboard_app.py); not manually triggered with a bad `.env` in Playwright*)

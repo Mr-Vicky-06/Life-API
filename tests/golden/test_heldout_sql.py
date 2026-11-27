@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import os
 from collections.abc import Generator
 from types import SimpleNamespace
 from typing import Any
@@ -18,10 +19,11 @@ from app.main import app
 from scripts.seed import seed_database
 from tests.golden.heldout import HELDOUT_CASES, SEED_END, compute_heldout_expected
 
+DB_PORT = os.getenv("DB_PORT", "5432")
 TEST_DB_NAME = "life_test"
-ADMIN_CONN_STR = "postgresql://life:life@127.0.0.1:5432/life"
-TEST_RW_URL = f"postgresql+psycopg://life:life@127.0.0.1:5432/{TEST_DB_NAME}"
-TEST_RO_URL = f"postgresql+psycopg://life_ro:life_ro@127.0.0.1:5432/{TEST_DB_NAME}"
+ADMIN_CONN_STR = f"postgresql://life:life@127.0.0.1:{DB_PORT}/life"
+TEST_RW_URL = f"postgresql+psycopg://life:life@127.0.0.1:{DB_PORT}/{TEST_DB_NAME}"
+TEST_RO_URL = f"postgresql+psycopg://life_ro:life_ro@127.0.0.1:{DB_PORT}/{TEST_DB_NAME}"
 
 
 @pytest.fixture(scope="module")

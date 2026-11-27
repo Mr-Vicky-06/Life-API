@@ -95,9 +95,13 @@ def test_chunk_note_content():
 def test_chunk_note_content_large_text_overlap():
     note_date = datetime.date(2026, 1, 20)
     source_type = "reading_note"
-    sentence = "This is a detailed analysis of distributed database consensus and transaction logs. "
+    sentence = (
+        "This is a detailed analysis of distributed database consensus and transaction logs. "
+    )
     large_text = sentence * 15  # ~1200 chars > 500
-    chunks = chunk_note_content(large_text, note_date, source_type, chunk_size=500, chunk_overlap=80)
+    chunks = chunk_note_content(
+        large_text, note_date, source_type, chunk_size=500, chunk_overlap=80
+    )
     assert len(chunks) >= 2
 
     for idx, header_text, raw_text in chunks:

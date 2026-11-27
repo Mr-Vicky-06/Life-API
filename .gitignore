@@ -27,10 +27,12 @@ htmlcov/
 
 # Dependencies & node
 node_modules/
-requirements.lock
 
-# Local models and caching
+# Local models, raw third-party datasets, and caching
 .cache/
+data/raw/
+.playwright-mcp/
+reports/real-sources-summary.json
 /models/
 huggingface/
 checkpoints/

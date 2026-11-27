@@ -112,13 +112,59 @@ def _collect_json_leaves(obj: Any, out: list[Any]) -> None:
             _collect_json_leaves(val, out)
 
 
+_PARTIAL_NOTE_HIT_RE = re.compile(
+    r'"note_date"\s*:\s*"([^"]+)"\s*,\s*"source_type"\s*:\s*"([^"]+)"\s*,\s*"snippet"\s*:\s*"([^"]*)',
+)
+
+
+def _salvage_note_hits(obs: str) -> list[dict[str, Any]] | None:
+    """Recover complete (or partial first) note hit objects from truncated JSON list output."""
+    stripped = obs.lstrip()
+    if not stripped.startswith("["):
+        return None
+    decoder = json.JSONDecoder()
+    salvaged: list[dict[str, Any]] = []
+    idx = 1
+    n = len(stripped)
+    while idx < n:
+        while idx < n and stripped[idx] in " \t\r\n,":
+            idx += 1
+        if idx >= n or stripped[idx] == "]":
+            break
+        try:
+            obj, next_idx = decoder.raw_decode(stripped, idx)
+            if isinstance(obj, dict):
+                salvaged.append(obj)
+            idx = next_idx
+        except json.JSONDecodeError:
+            break
+    if salvaged:
+        return salvaged
+    match = _PARTIAL_NOTE_HIT_RE.search(stripped)
+    if match:
+        return [
+            {
+                "note_date": match.group(1),
+                "source_type": match.group(2),
+                "snippet": match.group(3),
+            }
+        ]
+    return None
+
+
+def _parse_observation_or_salvage(obs: str) -> Any:
+    try:
+        return json.loads(obs)
+    except Exception:
+        return _salvage_note_hits(obs)
+
+
 def _build_verification_rows(observations: list[str]) -> list[list[Any]]:
     """Build flat row lists of allowed numbers & dates strictly from observed tool outputs."""
     allowed_cells: list[Any] = []
     for obs in observations:
-        try:
-            parsed = json.loads(obs)
-        except Exception:
+        parsed = _parse_observation_or_salvage(obs)
+        if parsed is None:
             allowed_cells.extend(_extract_values_from_text(obs))
             continue
 
@@ -152,41 +198,38 @@ def _plain_values_fallback(
         return "I could not retrieve supporting data from the available tools."
 
     last_obs = ok_observations[-1]
-    try:
-        parsed = json.loads(last_obs)
-        if isinstance(parsed, dict) and "columns" in parsed and "rows" in parsed:
-            cols = parsed["columns"]
-            rows = parsed["rows"]
-            if not rows:
-                return "Query executed cleanly but returned no matching records."
-            formatted = [
-                ", ".join(f"{c}={v}" for c, v in zip(cols, row, strict=False))
-                for row in rows[:5]
-            ]
-            return "Observed values: " + "; ".join(formatted) + "."
-        if isinstance(parsed, dict) and "rows" in parsed:
-            rows = parsed["rows"]
-            if not rows:
-                return "No metrics records matched the requested date range."
-            formatted = [
-                ", ".join(f"{k}={v}" for k, v in row.items())
-                for row in rows[:5]
-                if isinstance(row, dict)
-            ]
-            return "Observed metrics: " + "; ".join(formatted) + "."
-        if isinstance(parsed, list):
-            if not parsed:
-                return "No matching notes were found."
-            snippets = [
-                f"{item.get('note_date', '')} ({item.get('source_type', '')}): "
-                f"{item.get('snippet', '')}"
-                for item in parsed[:3]
-                if isinstance(item, dict)
-            ]
-            if snippets:
-                return "Observed notes: " + " | ".join(snippets)
-    except Exception:
-        pass
+    parsed = _parse_observation_or_salvage(last_obs)
+    if isinstance(parsed, dict) and "columns" in parsed and "rows" in parsed:
+        cols = parsed["columns"]
+        rows = parsed["rows"]
+        if not rows:
+            return "Query executed cleanly but returned no matching records."
+        formatted = [
+            ", ".join(f"{c}={v}" for c, v in zip(cols, row, strict=False))
+            for row in rows[:5]
+        ]
+        return "Observed values: " + "; ".join(formatted) + "."
+    if isinstance(parsed, dict) and "rows" in parsed:
+        rows = parsed["rows"]
+        if not rows:
+            return "No metrics records matched the requested date range."
+        formatted = [
+            ", ".join(f"{k}={v}" for k, v in row.items())
+            for row in rows[:5]
+            if isinstance(row, dict)
+        ]
+        return "Observed metrics: " + "; ".join(formatted) + "."
+    if isinstance(parsed, list):
+        if not parsed:
+            return "No matching notes were found."
+        snippets = [
+            f"{item.get('note_date', '')} ({item.get('source_type', '')}): "
+            f"{item.get('snippet', '')}"
+            for item in parsed[:3]
+            if isinstance(item, dict)
+        ]
+        if snippets:
+            return "Observed notes: " + " | ".join(snippets)
 
     return f"Observed values: {last_obs[:400]}"
 
@@ -214,7 +257,11 @@ def _build_system_prompt(cfg: Settings) -> str:
         "3. search_notes: Use for qualitative text search over journal entries, reading notes, "
         "or commit messages (feelings, books, engineering reflections).\n"
         "4. final: Use directly WITHOUT calling a tool for greetings, explaining available "
-        "capabilities, or non-database questions; or once observations answer the question.\n\n"
+        "capabilities, or non-database questions; or once observations answer the question.\n"
+        "5. Multi-part / compound questions: When the user asks BOTH a quantitative metric or SQL "
+        "question AND a qualitative question about notes/journal/reading/commits, execute tools "
+        "sequentially — call sql_query (or get_metrics) first, then call search_notes BEFORE "
+        "returning 'final'. Never pass qualitative diary/note questions only to sql_query.\n\n"
         "Generic routing examples:\n"
         "- 'How many days had reading_minutes >= 30?' -> action='sql_query', "
         "action_input={'question': 'How many days had reading_minutes >= 30?'}\n"
@@ -222,6 +269,8 @@ def _build_system_prompt(cfg: Settings) -> str:
         "action_input={'from': '2026-10-01', 'to': '2026-10-04', 'metrics': ['hrv_ms']}\n"
         "- 'What did my notes say about deep work?' -> action='search_notes', "
         "action_input={'query': 'deep work', 'top_k': 5}\n"
+        "- Compound metrics + notes question -> call sql_query (or get_metrics) first, then on "
+        "the next step call search_notes before returning 'final'.\n"
         "- 'What tools can you use?' -> action='final', action_input={'answer': '...'}\n\n"
         "Loop Rules:\n"
         "- Never repeat an identical tool+arguments call.\n"

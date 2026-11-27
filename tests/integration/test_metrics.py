@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import datetime
+import os
 from collections.abc import Generator
 
 import psycopg
@@ -19,10 +20,11 @@ from app.main import app
 from app.schemas.metrics import MetricsResponse
 from scripts.seed import seed_database
 
+DB_PORT = os.getenv("DB_PORT", "5432")
 TEST_DB_NAME = "life_test"
-ADMIN_CONN_STR = "postgresql://life:life@127.0.0.1:5432/life"
-TEST_RW_URL = f"postgresql+psycopg://life:life@127.0.0.1:5432/{TEST_DB_NAME}"
-TEST_RO_URL = f"postgresql+psycopg://life_ro:life_ro@127.0.0.1:5432/{TEST_DB_NAME}"
+ADMIN_CONN_STR = f"postgresql://life:life@127.0.0.1:{DB_PORT}/life"
+TEST_RW_URL = f"postgresql+psycopg://life:life@127.0.0.1:{DB_PORT}/{TEST_DB_NAME}"
+TEST_RO_URL = f"postgresql+psycopg://life_ro:life_ro@127.0.0.1:{DB_PORT}/{TEST_DB_NAME}"
 SEED_END = datetime.date(2026, 11, 23)
 
 

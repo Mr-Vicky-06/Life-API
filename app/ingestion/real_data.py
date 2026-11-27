@@ -1,9 +1,10 @@
-"""Real public dataset fetchers, parsers, and systematic alignment utilities.
+"""Opt-in composite public dataset fetchers and parsers for Life-API.
 
-Researched open datasets used by scripts/ingest_real_data.py so the showcase
-database runs on real human wearable telemetry, real Goodreads reading logs and
-reviews, real diary entries, real mobile screen-time logs, and real public
-GitHub commits rather than synthetic random generators.
+IMPORTANT: The datasets fetched here belong to multiple unrelated third-party
+participants and public sources alongside the owner's public GitHub commits.
+They are loaded ONLY when explicitly opted into via `--composite-demo` and MUST
+NOT be presented as one person's correlated personal data. Unmeasured fields are
+kept as `None` (SQL NULL) rather than fabricated.
 """
 from __future__ import annotations
 
@@ -75,37 +76,43 @@ REAL_SOURCES_MANIFEST: list[dict[str, str]] = [
         "stream": "github_commits + notes(commit_message)",
         "name": "Mr-Vicky-06 Public GitHub Repositories + Local git log",
         "url": "https://github.com/Mr-Vicky-06",
-        "license": "Public GitHub Repositories",
+        "license": "Owner public GitHub repositories + local git history",
     },
     {
-        "stream": "health_daily + screen_time totals",
-        "name": "Group Health Dataset (Sleep and Screen Time), Eindhoven Univ. of Technology",
+        "stream": "health_daily + screen_time totals (subset UIDs 1, 2, 4)",
+        "name": (
+            "Group Health Dataset (Sleep and Screen Time) — "
+            "Gogate, Eindhoven Univ. of Technology"
+        ),
         "url": ZENODO_GROUPHEALTH_URL,
-        "license": "CC-BY 4.0 (Zenodo 15171250)",
+        "license": (
+            "CC-BY 4.0 (https://zenodo.org/records/15171250, "
+            "DOI: 10.5281/zenodo.15171250)"
+        ),
     },
     {
-        "stream": "health_daily (earlier wearable baseline)",
-        "name": "Fitbit Fitabase Research Dataset",
+        "stream": "health_daily (earlier wearable rows, multiple MTurk participants)",
+        "name": "health-hacks/datasets Fitbit Fitabase Research CSVs",
         "url": FITBIT_ACTIVITY_URL,
-        "license": "Public Research Dataset (CC0 / Fitabase MTurk)",
+        "license": "no license found",
     },
     {
-        "stream": "screen_time (Social app usage)",
-        "name": "Screentime-App-Details Mobile Usage Log",
+        "stream": "screen_time (Social app usage rows)",
+        "name": "emadnahed/ScreenTimeAnalyzer Screentime-App-Details.csv",
         "url": SCREENTIME_APP_URL,
-        "license": "Public GitHub Analytics Dataset",
+        "license": "MIT License (declared in ScreenTimeAnalyzer README.md)",
     },
     {
         "stream": "reading_log + notes(reading_note)",
-        "name": "Goodreads Library Export with Pages Read & Reviews",
+        "name": "JB3NNETT/Goodreads-TBR goodreads_library_export.csv",
         "url": GOODREADS_EXPORT_URL,
-        "license": "Public Goodreads Library Export on GitHub",
+        "license": "no license found",
     },
     {
         "stream": "notes(journal)",
-        "name": "Reddit Diary Entries VAD Dataset (Hugging Face)",
+        "name": "mmarkusmalone/journal-entries-emotion-detection-vad (vad_data.csv)",
         "url": JOURNAL_VAD_URL,
-        "license": "CC-BY-NC-4.0",
+        "license": "CC-BY-NC-4.0 (declared in Hugging Face README.md)",
     },
 ]
 
@@ -135,14 +142,14 @@ _BANNED_DIARY_TERMS = (
 
 @dataclass(frozen=True)
 class DailyWearableRecord:
-    """Normalized single-day record from a real wearable dataset."""
+    """Normalized single-day record from a real wearable dataset (unmeasured fields are None)."""
 
     orig_date: datetime.date
     sleep_hours: float
-    sleep_score: int
-    deep_sleep_min: int
-    hrv_ms: float
-    resting_hr: int
+    sleep_score: int | None
+    deep_sleep_min: int | None
+    hrv_ms: float | None
+    resting_hr: int | None
     steps: int
     source: str
     screen_total_min: int | None = None
@@ -170,34 +177,6 @@ def download_cached(
         resp.raise_for_status()
         target.write_bytes(resp.content)
         return target.read_text(encoding="utf-8", errors="replace")
-
-
-def _systematic_sleep_score(
-    sleep_hours: float,
-    deep_sleep_min: int,
-    rem_min: int,
-    awake_min: int,
-    rating: float | None = None,
-) -> int:
-    if rating is not None and 0.0 < rating <= 1.0:
-        return max(40, min(100, int(round(rating * 100))))
-    dur_score = min(50.0, (sleep_hours / 8.0) * 50.0)
-    deep_score = min(25.0, (deep_sleep_min / 95.0) * 25.0)
-    rem_score = min(20.0, (rem_min / 90.0) * 20.0) if rem_min > 0 else 10.0
-    penalty = min(15.0, awake_min * 0.25)
-    return max(40, min(98, int(round(dur_score + deep_score + rem_score + 5.0 - penalty))))
-
-
-def _systematic_hrv(
-    resting_hr: int,
-    deep_sleep_min: int,
-    stress: float | None = None,
-) -> float:
-    if stress is not None:
-        val = 80.0 - 0.35 * stress - 0.25 * (resting_hr - 60)
-    else:
-        val = 58.0 + (deep_sleep_min - 80) * 0.14 - (resting_hr - 62) * 0.35
-    return round(max(26.0, min(92.0, val)), 2)
 
 
 def parse_grouphealth_csv(
@@ -292,24 +271,19 @@ def parse_grouphealth_csv(
             if not (2.0 <= sleep_hours <= 14.0):
                 continue
 
-            deep_min = int(main_sleep.get("sleep_deep_duration") or 0)
-            rem_min = int(main_sleep.get("sleep_rem_duration") or 0)
-            awake_min = int(main_sleep.get("sleep_awake_duration") or 0)
+            raw_deep = main_sleep.get("sleep_deep_duration")
+            deep_min = int(raw_deep) if raw_deep is not None else None
 
             if b["rhr"]:
-                rhr = int(round(sum(b["rhr"]) / len(b["rhr"])))
-            elif b["hr"]:
-                sorted_hr = sorted(b["hr"])
-                rhr = sorted_hr[max(0, int(len(sorted_hr) * 0.10))]
+                rhr: int | None = int(round(sum(b["rhr"]) / len(b["rhr"])))
             else:
-                rhr = 62
+                rhr = None
 
-            avg_stress = sum(b["stress"]) / len(b["stress"]) if b["stress"] else None
             rating = sum(b["rating"]) / len(b["rating"]) if b["rating"] else None
-            sleep_score = _systematic_sleep_score(
-                sleep_hours, deep_min, rem_min, awake_min, rating
-            )
-            hrv_ms = _systematic_hrv(rhr, deep_min, avg_stress)
+            if rating is not None and 0.0 < rating <= 1.0:
+                sleep_score: int | None = max(0, min(100, int(round(rating * 100))))
+            else:
+                sleep_score = None
 
             records.append(
                 DailyWearableRecord(
@@ -317,7 +291,7 @@ def parse_grouphealth_csv(
                     sleep_hours=sleep_hours,
                     sleep_score=sleep_score,
                     deep_sleep_min=deep_min,
-                    hrv_ms=hrv_ms,
+                    hrv_ms=None,
                     resting_hr=rhr,
                     steps=int(b["steps"]),
                     source="zenodo_15171250",
@@ -362,31 +336,19 @@ def parse_fitbit_csvs(
             s_row = slp_map[key]
             steps = int(float(a_row.get("total-steps") or 0))
             asleep_min = int(float(s_row.get("total-minutes-asleep") or 0))
-            in_bed_min = max(asleep_min, int(float(s_row.get("total-time-in-bed") or 1)))
             if steps <= 0 or asleep_min <= 0:
                 continue
 
             sleep_hours = round(asleep_min / 60.0, 2)
-            efficiency = asleep_min / in_bed_min
-            deep_min = max(35, int(round(asleep_min * 0.20)))
-            rhr = max(52, min(72, int(round(66 - (steps / 2500.0) - (sleep_hours - 7.0) * 1.5))))
-            sleep_score = _systematic_sleep_score(
-                sleep_hours,
-                deep_min,
-                int(round(asleep_min * 0.22)),
-                max(0, in_bed_min - asleep_min),
-                rating=efficiency,
-            )
-            hrv_ms = _systematic_hrv(rhr, deep_min)
             day = datetime.datetime.fromtimestamp(key[1], tz=datetime.UTC).date()
             records.append(
                 DailyWearableRecord(
                     orig_date=day,
                     sleep_hours=sleep_hours,
-                    sleep_score=sleep_score,
-                    deep_sleep_min=deep_min,
-                    hrv_ms=hrv_ms,
-                    resting_hr=rhr,
+                    sleep_score=None,
+                    deep_sleep_min=None,
+                    hrv_ms=None,
+                    resting_hr=None,
                     steps=steps,
                     source="fitbit_fitabase",
                     screen_total_min=None,
@@ -450,39 +412,28 @@ def parse_screentime_social_csv(csv_text: str) -> list[int]:
 def build_screen_time_rows(
     health_timeline: list[dict[str, Any]],
     social_series: list[int],
-    commit_counts_by_date: dict[datetime.date, int],
 ) -> list[dict[str, Any]]:
-    """Build daily Productivity/Entertainment/Social rows anchored to real screen totals."""
+    """Build daily screen-time rows from measured totals without commit links."""
     rows: list[dict[str, Any]] = []
-    social_pool = social_series or [65]
-
     for idx, day_row in enumerate(health_timeline):
         day = day_row["date"]
-        commits_today = commit_counts_by_date.get(day, 0)
         measured_total = day_row.get("_screen_total_min")
-        real_social = social_pool[idx % len(social_pool)]
-
         if measured_total and measured_total > 0:
-            total = int(measured_total)
-            social = min(real_social, max(15, int(round(total * 0.50))))
-            remainder = max(0, total - social)
-            prod_ratio = 0.65 if commits_today > 0 else (0.48 if day.weekday() < 5 else 0.35)
-            productivity = int(round(remainder * prod_ratio))
-            entertainment = max(0, remainder - productivity)
-        else:
-            social = real_social
-            productivity = 180 + min(120, commits_today * 18) if commits_today > 0 else (
-                135 if day.weekday() < 5 else 75
+            rows.append(
+                {
+                    "date": day,
+                    "category": "Total (unclassified)",
+                    "minutes": int(measured_total),
+                }
             )
-            entertainment = 95 if day.weekday() >= 5 else 65
-
-        rows.extend(
-            [
-                {"date": day, "category": "Productivity", "minutes": productivity},
-                {"date": day, "category": "Entertainment", "minutes": entertainment},
-                {"date": day, "category": "Social", "minutes": social},
-            ]
-        )
+        elif social_series:
+            rows.append(
+                {
+                    "date": day,
+                    "category": "Social",
+                    "minutes": int(social_series[idx % len(social_series)]),
+                }
+            )
     return rows
 
 
@@ -514,7 +465,7 @@ def parse_goodreads_books(csv_text: str) -> list[dict[str, Any]]:
                 "title": title,
                 "author": author,
                 "pages_read": pages,
-                "minutes": max(15, int(round(pages * 1.4))),
+                "minutes": None,
                 "review": cleaned_review,
             }
         )
@@ -576,12 +527,9 @@ def build_reading_and_notes(
     return reading_rows, note_rows
 
 
-def parse_vad_journals(csv_text: str) -> tuple[list[str], list[str], list[str]]:
-    """Filter clean first-person diary entries bucketed by low/mid/high Valence score."""
-    low_sleep: list[str] = []
-    mid_daily: list[str] = []
-    high_pos: list[str] = []
-
+def parse_vad_journals(csv_text: str) -> list[str]:
+    """Filter clean first-person diary entries without valence-based sleep matching."""
+    entries: list[str] = []
     for row in csv.DictReader(io.StringIO(csv_text)):
         raw_post = row.get("Post") or ""
         text_clean = clean_text(re.sub(r"\s+", " ", html.unescape(raw_post)).strip())
@@ -592,76 +540,27 @@ def parse_vad_journals(csv_text: str) -> tuple[list[str], list[str], list[str]]:
             continue
         if not _FIRST_PERSON_RE.search(low):
             continue
-        try:
-            valence = float(row.get("V") or 0.0)
-        except ValueError:
-            continue
-
-        if valence <= -0.15 and any(
-            w in low for w in ("sleep", "slept", "tired", "exhausted", "insomnia")
-        ):
-            low_sleep.append(text_clean)
-        elif -0.15 < valence < 0.35 and any(
-            w in low for w in ("work", "day", "morning", "sleep", "read", "walk")
-        ):
-            mid_daily.append(text_clean)
-        elif valence >= 0.40 and any(
-            w in low
-            for w in (
-                "work",
-                "focus",
-                "read",
-                "book",
-                "walk",
-                "rest",
-                "peace",
-                "good",
-                "great",
-                "happy",
-                "proud",
-                "grateful",
-            )
-        ):
-            high_pos.append(text_clean)
-
-    return low_sleep, mid_daily, high_pos
+        entries.append(text_clean)
+    return entries
 
 
 def build_journal_notes(
     health_timeline: list[dict[str, Any]],
-    low_sleep: list[str],
-    mid_daily: list[str],
-    high_pos: list[str],
+    entries: list[str],
 ) -> list[dict[str, Any]]:
-    """Pair real VAD diary entries to wearable days based on actual sleep hours."""
+    """Map standalone diary entries onto alternating dates with zero cross-source linking."""
     notes: list[dict[str, Any]] = []
-    low_i = mid_i = high_i = 0
+    if not entries:
+        return notes
 
+    entry_idx = 0
     for idx, day_row in enumerate(health_timeline):
-        sleep_h = float(day_row["sleep_hours"])
+        if idx % 2 != 0:
+            continue
         day = day_row["date"]
-        # Record every poor-sleep night (<6.3h) plus alternating normal/high days (~75 total).
-        if sleep_h < 6.3 and low_sleep:
-            entry = low_sleep[low_i % len(low_sleep)]
-            low_i += 1
-        elif idx % 2 != 0:
-            continue
-        elif sleep_h >= 7.5 and high_pos:
-            entry = high_pos[high_i % len(high_pos)]
-            high_i += 1
-        elif mid_daily:
-            entry = mid_daily[mid_i % len(mid_daily)]
-            mid_i += 1
-        elif high_pos:
-            entry = high_pos[high_i % len(high_pos)]
-            high_i += 1
-        else:
-            continue
-
-        content = clean_text(
-            f"Journal ({day.isoformat()}): [Sleep: {sleep_h}h, Steps: {day_row['steps']}] "
-            f"{entry}"
-        )
+        entry = entries[entry_idx % len(entries)]
+        entry_idx += 1
+        content = clean_text(f"Journal ({day.isoformat()}): {entry}")
         notes.append(
             {
                 "ts": datetime.datetime.combine(day, datetime.time(21, 30), tzinfo=datetime.UTC),

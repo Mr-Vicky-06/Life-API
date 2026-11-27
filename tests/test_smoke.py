@@ -10,9 +10,14 @@ from fastapi.testclient import TestClient
 @pytest.fixture(scope="module")
 def client():
     # Provide minimal required env vars before importing the app
+    db_port = os.getenv("DB_PORT", "5432")
     os.environ.setdefault("APP_API_KEY", "test-key")
-    os.environ.setdefault("DATABASE_URL", "postgresql+psycopg://life:life@localhost:5432/life")
-    os.environ.setdefault("DATABASE_URL_RO", "postgresql+psycopg://life_ro:life_ro@localhost:5432/life")
+    os.environ.setdefault(
+        "DATABASE_URL", f"postgresql+psycopg://life:life@localhost:{db_port}/life"
+    )
+    os.environ.setdefault(
+        "DATABASE_URL_RO", f"postgresql+psycopg://life_ro:life_ro@localhost:{db_port}/life"
+    )
 
     from app.main import app
     return TestClient(app)

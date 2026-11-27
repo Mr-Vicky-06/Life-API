@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import os
 import re
-from typing import Pattern
+from re import Pattern
 
 # ---------------------------------------------------------------------------
 # Precompiled Regexes per docs/SECURITY.md §2

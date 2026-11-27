@@ -13,5 +13,5 @@
 | 6 | Metrics + Insights API | Passed | `/v1/metrics` & `/v1/insights/daily` RO+cached+verified; 11 integration, 4 live (`14.3s` insight), 164 full suite passed; live curls OK | 2026-11-25 | phase-6-complete |
 | 7 | ReAct Agent | Passed | Step 0A/0B fixed; ReAct 3 tools, 5-step cap, 100-session LRU, <data> isolation; 15 agent gate, 5 live, 180 full suite passed; bench 14/15; 2-turn curl OK | 2026-11-25 | phase-7-complete |
 | 8 | Dashboard | Passed | `/v1/screen-time` curl + 6 metrics + 11 dashboard unit/AppTest + 193 full suite passed; Playwright 5-view visual check (0 console errors) | 2026-11-25 | phase-8-complete |
-| 8.1 | Real Data Showcase | Passed | Real open datasets (Zenodo `15171250`, Fitbit, `Mr-Vicky-06` 203 commits, Goodreads, ScreenTime, VAD diaries) ingested (`179/203/75/537/364`); 196 passed; Playwright live verified | 2026-11-26 | feat/real-showcase-data |
-| 9 | Hardening | Pending | — | — | — |
+| 8.1 | Real Data Showcase (Corrected) | Superseded / Opt-in | Moved composite public demo behind `--composite-demo`; restored default `scripts.seed --reset`, nullable unmeasured columns (`0002_nullable_reading_minutes`), `DATA_LABEL`, verbatim license audit & Zenodo CC-BY 4.0 attribution | 2026-11-26 | phase-9-hardening |
+| 9 | Hardening | Passed | 22/22 SQL bench, 15/15 agent bench, Security & PRD matrices verified, `ruff check .` clean, 202 non-live + 5 live passed, fresh-clone on `DB_PORT=5433` passed | 2026-11-27 | phase-9-complete / v0.1.0 |

@@ -40,7 +40,10 @@ include = ["app*", "dashboard*", "scripts*", "migrations*"]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 testpaths = ["tests"]
-markers = ["live: requires a running Ollama instance"]
+markers = [
+    "live: requires a running Ollama instance",
+    "live_github: requires GITHUB_TOKEN env var to query GitHub API",
+]
 filterwarnings = [
     "ignore::UserWarning:pydantic.*",
     "ignore::DeprecationWarning:litellm.*",

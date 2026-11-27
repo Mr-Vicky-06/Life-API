@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import datetime
+import logging
 
 import pytest
 from pydantic import ValidationError
@@ -77,3 +78,17 @@ def test_seed_data_fixed_end_date_and_consistent_journal_text():
         elif sleep >= 7.5:
             assert "well-rested" in content
             assert "Slept badly" not in content
+
+
+def test_cloud_llm_enabled_logs_startup_warning(caplog):
+    """Enabling cloud_llm_enabled=True logs a startup warning about masked prompts."""
+    with caplog.at_level(logging.WARNING, logger="app.config"):
+        Settings(
+            app_env="dev",
+            app_api_key="change-me",
+            database_url="postgresql+psycopg://life:life@127.0.0.1:5432/life",
+            database_url_ro="postgresql+psycopg://life_ro:life_ro@127.0.0.1:5432/life",
+            cloud_llm_enabled=True,
+            llm_model="gpt-4o-mini",
+        )
+    assert any("masked prompts" in rec.getMessage().lower() for rec in caplog.records)
