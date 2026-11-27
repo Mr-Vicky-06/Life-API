@@ -11,7 +11,7 @@ Codes: `unauthorized`(401), `not_found`(404), `validation_error`(422), `sql_reje
 ## Endpoints
 | Method | Path | Purpose |
 |---|---|---|
-| GET | `/health` | no auth; `{"status":"ok","db":true,"llm":true|false}` |
+| GET | `/health` | no auth; `{"status":"ok","db":true,"llm":true|false,"llm_detail":str|null,"router":"general"|"needle"|"none"}` |
 | POST | `/v1/ingest/github` | pull commits (body `{"days":30}`) |
 | POST | `/v1/ingest/{health\|reading\|screen_time}` | multipart CSV upload, field `file` |
 | POST | `/v1/ingest/notes` | JSON list of notes |

@@ -3,7 +3,8 @@ from __future__ import annotations
 
 import datetime
 import re
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 from sqlalchemy import text
 from sqlalchemy.orm import Session

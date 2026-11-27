@@ -17,7 +17,7 @@ Dependency rule: a layer may only import from layers above it in this list (L4 â
 ## 2. Pinned Tech Stack (do not add or swap)
 | Concern | Choice |
 |---|---|
-| Language | Python 3.11 |
+| Language | Python 3.11+ (tested on Python 3.12.10) |
 | API | FastAPI + Uvicorn |
 | Validation | Pydantic v2, pydantic-settings |
 | DB | PostgreSQL 16 via image `pgvector/pgvector:pg16` (local dev). Neon works by changing `DATABASE_URL` only |
@@ -44,6 +44,7 @@ Life-API uses TWO model roles:
 APP_ENV=dev
 APP_API_KEY=change-me
 APP_TIMEZONE=Asia/Kolkata
+DB_PORT=5432
 DATABASE_URL=postgresql+psycopg://life:life@localhost:5432/life
 DATABASE_URL_RO=postgresql+psycopg://life_ro:life_ro@localhost:5432/life
 LLM_MODEL=ollama/qwen2.5-coder:7b

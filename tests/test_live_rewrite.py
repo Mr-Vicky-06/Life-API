@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import time
+
 import pytest
 
 from app.rag.rewrite import rewrite_query

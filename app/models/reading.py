@@ -20,9 +20,7 @@ class ReadingLog(Base):
     pages_read: Mapped[int] = mapped_column(
         sa.Integer, nullable=False, server_default=sa.text("0")
     )
-    minutes: Mapped[int] = mapped_column(
-        sa.Integer, nullable=False, server_default=sa.text("0")
-    )
+    minutes: Mapped[int | None] = mapped_column(sa.Integer, nullable=True)
 
     __table_args__ = (
         sa.UniqueConstraint("date", "title", name="uq_reading_log_date_title"),

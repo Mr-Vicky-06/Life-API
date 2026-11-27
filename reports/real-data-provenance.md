@@ -1,41 +1,39 @@
-# Real Open-Dataset Showcase Provenance Report
-Date: 2026-11-26 | Branch: feat/real-showcase-data | Status: Verified
+# Data Provenance & Third-Party License Audit
 
-## 1. Objective
+Updated: 2026-11-26 | Branch: `phase-9-hardening`
 
-Replace synthetic seeded showcase rows in the live Streamlit database (`life`) with verified public real-world datasets and real owner GitHub commit histories (`python -m scripts.ingest_real_data --reset`), keeping `python -m scripts.seed` (`random.seed(42)`) intact strictly for deterministic automated tests.
+## 1. Default Dev Data Policy
 
----
-
-## 2. Verified Real Data Sources & Systematic Derivations
-
-| Table / Stream | Primary Real Source | License / Provenance | Records Loaded | Honest Handling / Derivations |
-|---|---|---|---|---|
-| `github_commits` + `notes (commit_message)` | `Mr-Vicky-06` active public GitHub repositories (`Life-API`, `UC10_PipelineMonitor_DataSentinel`, `neetcode_DSA_250`, `V-Y-K-E`, `cricket_iq`, `SkillForage`, `Aetheria`, `Spider_man_brand_new_day`, `Mr-Vicky-06`, `Living_Marvel_Universe`, `MedScribe_AI`, `UX-CO-Skill`, `FWA-Orchestrator`, `VICKYVERSE`, `VICYVERRSE_X_SQL_MASTER`) | Public GitHub repositories (`github.com/Mr-Vicky-06`) | 203 real commits (`2026-06-01..2026-11-26`) | Native 2026 commit timestamps & SHAs preserved verbatim; exact `additions`/`deletions` extracted via `git log --numstat` locally (`Life-API`) and `0` fallback when shallow remote header clones (`--filter=tree:0`) skip diffs. |
-| `health_daily` (recent 117 days) | [Group Health Dataset (Sleep and Screen Time)](https://zenodo.org/api/records/15171250/files/GroupHealth_SleepScreen.csv/content) — Eindhoven Univ. of Technology (Zenodo `15171250`, `2025-04-08`) | `CC-BY 4.0` | 117 real participant-days (`UID 4`, `UID 2`, `UID 1`) | Measured `sleep` duration/deep/light/REM, `steps`, `resting_heart_rate` (or nocturnal 10th-pct watch HR), `stress`, `sleep_rating`, and total `screentime`. Calendar-aligned onto recent days ending `2026-11-26` (putting `UID 1` on the most recent 37 days). Missing watch `sleep_rating` -> systematic score from measured duration/deep/REM/awake; `hrv_ms` derived systematically from wearable `stress` + `resting_hr`. |
-| `health_daily` (earlier 62 days) | [Fitbit Fitabase Research Dataset](https://raw.githubusercontent.com/health-hacks/datasets/master/fitbit-mturk/various-participants/fitabase-data-4-12-16-to-5-12-16/dailyActivity_merged.csv) (`dailyActivity_merged.csv` + `sleepDay_merged.csv`) | Public Research Dataset (MTurk / Fitabase) | 62 real paired participant-days | Measured `total-steps` and `total-minutes-asleep` (`sleep_hours`), aligned onto `2026-06-01..2026-08-01`; `deep_sleep_min`, `resting_hr`, and `hrv_ms` systematically estimated from measured sleep efficiency and step volume. |
-| `screen_time` | GroupHealth `screentime` totals + [Screentime-App-Details.csv](https://raw.githubusercontent.com/emadnahed/ScreenTimeAnalyzer/HEAD/Screentime-App-Details.csv) | `CC-BY 4.0` + Public Mobile Screen-Time Log | 537 category rows across 179 days | Uses real measured GroupHealth daily `screentime` totals where present (`<= 81` days) and real `Instagram` + `Whatsapp` daily `Social` totals from `Screentime-App-Details.csv`; remaining measured minutes split cleanly into `Productivity` vs `Entertainment` weighted by real GitHub commit activity (`Productivity` + `Entertainment` + `Social` equals measured total). |
-| `reading_log` + `notes (reading_note)` | [JB3NNETT/Goodreads-TBR/goodreads_library_export.csv](https://raw.githubusercontent.com/JB3NNETT/Goodreads-TBR/main/goodreads_library_export.csv) | Public Goodreads Library Export | 75 real finished books + HTML-cleaned written reviews | Preserves real titles, authors, `Number of Pages` -> `pages_read`, and real `My Review` text cleaned via `html.unescape` + `clean_text`; systematically derives `reading_log.minutes = round(pages_read * 1.4)` and maps dates across `2026-06-01..2026-11-26`. |
-| `notes (journal)` | [mmarkusmalone/journal-entries-emotion-detection-vad](https://huggingface.co/datasets/mmarkusmalone/journal-entries-emotion-detection-vad/resolve/main/vad_data.csv) | `CC-BY-NC-4.0` | Filtered clean first-person diary entries (part of 364 total `notes`) | Authentic first-person diary posts filtered for clean non-profane daily-life prose and matched by continuous Valence (`V`) score to short-sleep (`< 6.3h`) vs rested/active wearable days. |
+- **Default development database (`python -m scripts.seed --reset`):** Generates deterministic synthetic demo data (`SEED_END_DATE=2026-11-23`, `random.seed(42)`) across all 6 tables (`health_daily`, `github_commits`, `reading_log`, `screen_time`, `notes`, `note_chunks`). Served with `DATA_LABEL="Synthetic demo data"` (default).
+- **Opt-in composite demo (`python -m scripts.ingest_real_data --composite-demo --reset`):** Disabled by default and gated behind explicit `--composite-demo`. Combines unrelated third-party public datasets alongside the owner's public GitHub commit history. Cross-source correlations (for example, sleep vs. commits) are **not** meaningful in `--composite-demo` mode, and unmeasured fields (`hrv_ms`, missing `sleep_score`, `reading_log.minutes`, missing `resting_hr`, and Fitbit `deep_sleep_min`) are left as SQL `NULL` (`None`) rather than fabricated. When serving a composite database, set:
+  ```dotenv
+  DATA_LABEL="Composite public datasets + my GitHub commits (not personal health data)"
+  ```
 
 ---
 
-## 3. Verification Gates (Latest Run)
+## 2. Third-Party License Audit (Verbatim Findings)
 
-```text
-.\.venv\Scripts\python.exe -m scripts.ingest_real_data --reset
-Real data ingest completed (2026-06-01..2026-11-26): health=179ins/0upd, commits=203ins/0upd, reading=75ins/0upd, screen=537ins/0upd, notes=364ins/0skip
+Each source fetched by `app/ingestion/real_data.py` was queried via upstream repository/API metadata and README files on 2026-11-26:
 
-.\.venv\Scripts\python.exe -m ruff check dashboard/ app/metrics.py app/schemas/metrics.py app/api/routes_metrics.py app/ingestion/real_data.py scripts/ingest_real_data.py tests/integration/test_metrics.py tests/unit/test_dashboard_charts.py tests/unit/test_dashboard_client.py tests/integration/test_dashboard_app.py tests/unit/test_real_data.py
-All checks passed!
+| Source | Dataset / URL | Verbatim License Finding | Restrictions & Handling in `--composite-demo` |
+|---|---|---|---|
+| Owner GitHub commits | `https://github.com/Mr-Vicky-06` + local `.git` | Owner public GitHub repositories + local git history | Native 2026 commit timestamps & SHAs; diffs collected locally via `git log --numstat` (remote shallow clones report `additions=0, deletions=0` when tree blobs are omitted). |
+| Zenodo `15171250` (`GroupHealth_SleepScreen.csv`) | `https://zenodo.org/api/records/15171250` | API `metadata.license = {"id": "cc-by-4.0"}` (`CC-BY 4.0`) | Subset (`UID 4`, `UID 2`, `UID 1`) mapped chronologically into the demo date window; unmeasured `hrv_ms`, missing `sleep_rating`, and missing `resting_heart_rate` stored as `NULL`; `screentime` stored as `"Total (unclassified)"` without synthetic category splits. |
+| Fitbit Fitabase (`health-hacks/datasets`) | `https://github.com/health-hacks/datasets` (`fitbit-mturk/...`) | **no license found** (GitHub `/license` returned 404; repo `license: null`; no LICENSE file in root or dataset READMEs) | Included only when `--composite-demo` is passed; only `sleep_hours` and `steps` are stored (`sleep_score`, `deep_sleep_min`, `hrv_ms`, `resting_hr` are all `NULL`). |
+| `emadnahed/ScreenTimeAnalyzer` (`Screentime-App-Details.csv`) | `https://github.com/emadnahed/ScreenTimeAnalyzer` | **MIT License** (README.md ends with `## License` / `This project is licensed under the MIT License.`) | Used only for `"Social"` screen-time rows on days without GroupHealth totals; no synthetic `Productivity`/`Entertainment` weights. |
+| `JB3NNETT/Goodreads-TBR` (`goodreads_library_export.csv`) | `https://github.com/JB3NNETT/Goodreads-TBR` | **no license found** (GitHub `/license` returned 404; repo `license: null`; root has no LICENSE file) | Included only when `--composite-demo` is passed; `reading_log.minutes` stored as `NULL` because Goodreads exports contain page counts only. |
+| `mmarkusmalone/journal-entries-emotion-detection-vad` (`vad_data.csv`) | `https://huggingface.co/datasets/mmarkusmalone/journal-entries-emotion-detection-vad` | **`CC-BY-NC-4.0`** (Hugging Face `README.md` YAML frontmatter `license: cc-by-nc-4.0`) | Non-commercial attribution required; filtered diary excerpts placed on alternating dates without valence/sleep matching or `[Sleep: ...]` metric prefixes. |
 
-.\.venv\Scripts\python.exe -m pytest -q
-196 passed, 2 warnings in 293.02s (0:04:53)
-```
+### Required CC-BY 4.0 Attribution (Zenodo Record 15171250)
 
-Live Playwright Dashboard Verification (against PostgreSQL `life` + Ollama `qwen2.5-coder:7b` + `http://127.0.0.1:8501`):
-- `Overview`: `Available data: 2026-06-01 to 2026-11-26`, default 30d window (`2026-10-28..2026-11-26`) rendered `Avg Sleep 7.29 h (+0.40 h)`, `Total Commits 83 (+83)`, `Avg Steps 4,998 (-204)`, `Total Reading 6,684 min (+182 min)`, scatter `r = 0.275, n = 30`.
-- `Date range filter`: Selecting `2026-09-01..2026-09-30` in sidebar calendar dynamically updated charts and KPIs (`0` browser console errors).
-- `Daily Insight` (`2026-11-26`): Warm click rendered exact DB summary (`8.27 hours`, `470 minutes`, `54 steps`, `1` commit, `560 minutes` screen time); cold load prior to warm-up hit the 30 s data timeout cleanly with retry banner.
-- `Search Notes` (`"slept tired"`): Returned real human diary hits matching short-sleep Eindhoven nights (`2026-11-23 | journal | score=0.0164`, `2026-10-16 | journal | score=0.0159`).
-- `AI Chat` (`"What was my average sleep on days I pushed code?"`): Returned `7.41 hours` with expanded `Steps (2) | Latency: 12633 ms` and executed SQL over real commit + wearable days.
+> This project's optional `--composite-demo` dataset uses portions of **Group Health Dataset (Sleep and Screen Time)** by **Gogate** (Eindhoven University of Technology), DOI [10.5281/zenodo.15171250](https://doi.org/10.5281/zenodo.15171250) ([https://zenodo.org/records/15171250](https://zenodo.org/records/15171250)), licensed under the [Creative Commons Attribution 4.0 International License (CC-BY 4.0)](https://creativecommons.org/licenses/by/4.0/).
+>
+> **Changes made:** Filtered to participant UIDs `1`, `2`, and `4`, aggregated by UTC calendar date, monotonically shifted into the configured showcase window, and left unmeasured fields (`hrv_ms`, absent `sleep_rating`, and absent `resting_heart_rate`) as `NULL`.
+
+---
+
+## 3. Repository Tracking Audit
+
+- `git ls-files` audit on `phase-9-hardening` confirmed **0** raw third-party CSVs, JSONs, or downloaded datasets are tracked in Git.
+- `.gitignore` excludes `.cache/` and `data/raw/` so cached third-party downloads stay out of version control.

@@ -1,7 +1,6 @@
 """Tests for PII masking, unmasking, and cloud guard."""
 from __future__ import annotations
 
-import json
 import pytest
 import respx
 from httpx import Response
@@ -9,7 +8,7 @@ from httpx import Response
 from app.config import Settings
 from app.gateway.exceptions import ModelGatewayError
 from app.gateway.llm import call_llm
-from app.gateway.pii import mask, redact_all, unmask
+from app.gateway.pii import mask, unmask
 
 
 def _build_test_secrets():
@@ -118,7 +117,10 @@ def test_cloud_llm_outbound_pii_masked_and_inbound_unmasked(monkeypatch):
                         "index": 0,
                         "message": {
                             "role": "assistant",
-                            "content": "Received request for [EMAIL_1] with token [TOKEN_1]. Everything looks good.",
+                            "content": (
+                                "Received request for [EMAIL_1] with token [TOKEN_1]. "
+                                "Everything looks good."
+                            ),
                         },
                         "finish_reason": "stop",
                     }

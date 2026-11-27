@@ -1,11 +1,11 @@
-"""Ingest verified real open datasets + real GitHub commits for Life-API showcase."""
+"""Opt-in composite public demo dataset + owner GitHub commit loader."""
 from __future__ import annotations
 
 import argparse
-import collections
 import datetime
 import json
 import pathlib
+import sys
 from typing import Any
 
 from sqlalchemy.orm import Session
@@ -86,18 +86,16 @@ def build_real_dataset(
         username=user,
         include_remote=include_remote_git,
     )
-    commit_counts = collections.Counter(c["commit_date"] for c in commit_rows)
-
     social_series = parse_screentime_social_csv(screen_text)
-    screen_rows = build_screen_time_rows(health_timeline, social_series, commit_counts)
+    screen_rows = build_screen_time_rows(health_timeline, social_series)
 
     books = parse_goodreads_books(goodreads_text)
     reading_rows, reading_notes = build_reading_and_notes(
         books, start_date=start_date, end_date=resolved_end
     )
 
-    low_sleep, mid_daily, high_pos = parse_vad_journals(vad_text)
-    journal_notes = build_journal_notes(health_timeline, low_sleep, mid_daily, high_pos)
+    diary_entries = parse_vad_journals(vad_text)
+    journal_notes = build_journal_notes(health_timeline, diary_entries)
 
     health_clean = [{k: v for k, v in r.items() if not k.startswith("_")} for r in health_timeline]
     notes_rows = journal_notes + reading_notes + commit_notes
@@ -115,6 +113,7 @@ def build_real_dataset(
 
 def ingest_real_database(
     *,
+    composite_demo: bool = False,
     reset: bool = False,
     end_date: datetime.date | None = None,
     days: int = 179,
@@ -122,12 +121,28 @@ def ingest_real_database(
     refresh_cache: bool = False,
     manifest_out: pathlib.Path | None = pathlib.Path("reports/real-sources-summary.json"),
 ) -> dict[str, Any]:
-    """Populate PostgreSQL idempotently from real open internet datasets & GitHub history."""
+    """Opt-in composite demo loader (requires explicit composite_demo=True / --composite-demo)."""
+    if not composite_demo:
+        raise RuntimeError(
+            "Refusing to run without --composite-demo. Default dev data is seeded by "
+            "'python -m scripts.seed --reset'."
+        )
     settings = get_settings()
     if reset and settings.app_env.lower() != "dev":
         raise RuntimeError(
             f"Refusing to run --reset when APP_ENV='{settings.app_env}' (requires 'dev')."
         )
+
+    print(
+        "WARNING: --composite-demo loads a COMPOSITE of unrelated third-party public "
+        "datasets (multiple wearable participants, a Goodreads export, Reddit diary "
+        "entries, and mobile app screen logs) alongside the owner's public GitHub "
+        "commits.\nCross-source correlations (e.g., sleep vs commits) are NOT "
+        "meaningful and MUST NOT be presented as one person's data.\n"
+        'Set DATA_LABEL="Composite public datasets + my GitHub commits (not personal health data)" '
+        "when serving this database.",
+        file=sys.stderr,
+    )
 
     payload = build_real_dataset(
         end_date=end_date,
@@ -171,12 +186,18 @@ def ingest_real_database(
 
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Ingest verified real open datasets into Life-API."
+        description="Opt-in composite public dataset loader (default dev data is scripts.seed)."
+    )
+    parser.add_argument(
+        "--composite-demo",
+        action="store_true",
+        required=True,
+        help="Explicit opt-in acknowledgement to load unrelated composite data.",
     )
     parser.add_argument(
         "--reset",
         action="store_true",
-        help="Truncate data tables before ingesting real data (requires APP_ENV=dev).",
+        help="Truncate data tables before ingesting composite data (requires APP_ENV=dev).",
     )
     parser.add_argument(
         "--end-date",
@@ -206,6 +227,7 @@ def _parse_args() -> argparse.Namespace:
 if __name__ == "__main__":
     args = _parse_args()
     ingest_real_database(
+        composite_demo=args.composite_demo,
         reset=args.reset,
         end_date=args.end_date,
         days=args.days,

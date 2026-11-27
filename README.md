@@ -38,9 +38,12 @@ pip install -e ".[dev]"
 # 5. Run migrations
 alembic upgrade head
 
-# 6. Seed deterministic test data OR load real researched datasets (for Streamlit showcase)
-python -m scripts.seed                      # deterministic 90-day synthetic dataset
-python -m scripts.ingest_real_data --reset  # real GitHub, Zenodo, Fitbit, Goodreads & journal data
+# 6. Seed deterministic synthetic demo data (default)
+python -m scripts.seed --reset              # deterministic 90-day synthetic dataset
+
+# (Optional) Opt-in composite demo combining third-party public datasets + owner GitHub commits:
+# Cross-source correlations are NOT meaningful; set DATA_LABEL when using this mode.
+# python -m scripts.ingest_real_data --composite-demo --reset
 
 # 7. Start the API
 uvicorn app.main:app --reload   # → http://localhost:8000
@@ -77,6 +80,48 @@ Verify in another terminal or browser:
 curl http://127.0.0.1:8000/health
 # Dashboard URL: http://127.0.0.1:8501
 ```
+
+## Using your own data
+
+By default, `python -m scripts.seed --reset` loads 90 days of deterministic synthetic demo data (`DATA_LABEL="Synthetic demo data"`). To replace it with your own records:
+
+1. **Reset empty tables (optional) or ingest directly on top of a migrated database:**
+   Run `alembic upgrade head`, then set `DATA_LABEL="My personal data"` (or any label) in `.env` so the dashboard banner and chart captions reflect your data source.
+
+2. **GitHub commits (`POST /v1/ingest/github`):**
+   Set `GITHUB_TOKEN` and `GITHUB_USERNAME` in `.env`, then sync recent commits:
+   ```powershell
+   curl -X POST http://127.0.0.1:8000/v1/ingest/github `
+     -H "X-API-Key: <APP_API_KEY>" `
+     -H "Content-Type: application/json" `
+     -d '{"days": 90}'
+   ```
+
+3. **Health daily CSV (`POST /v1/ingest/health`, multipart `file`):**
+   Expected CSV columns:
+   ```csv
+   date,sleep_hours,sleep_score,deep_sleep_min,hrv_ms,resting_hr,steps,source
+   2026-11-23,7.5,84,92,58.0,56,9200,csv
+   ```
+
+4. **Reading log CSV (`POST /v1/ingest/reading`, multipart `file`):**
+   Expected CSV columns:
+   ```csv
+   date,title,pages_read,minutes
+   2026-11-23,Designing Data-Intensive Applications,35,45
+   ```
+
+5. **Screen time CSV (`POST /v1/ingest/screen_time`, multipart `file`):**
+   Expected CSV columns:
+   ```csv
+   date,category,minutes
+   2026-11-23,Productivity,180
+   ```
+
+6. **Journal / reading notes JSON (`POST /v1/ingest/notes`):**
+   Send a JSON array of objects (`ts`, `source_type` in `journal | reading_note | commit_message`, `content`).
+
+*(Note: `python -m scripts.ingest_real_data --composite-demo --reset` is an opt-in composite public dataset demo only; cross-source correlations across those third-party sources are not meaningful.)*
 
 ## LLM Setup
 

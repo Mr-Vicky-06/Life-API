@@ -73,7 +73,7 @@ def upsert_reading_log(session: Session, rows: list[dict[str, Any]]) -> IngestRe
                 index_elements=["date", "title"],
                 set_={
                     "pages_read": row.get("pages_read", 0),
-                    "minutes": row.get("minutes", 0),
+                    "minutes": row["minutes"] if "minutes" in row else 0,
                 },
             )
             .returning(literal_column("xmax = 0").label("is_inserted"))

@@ -7,19 +7,20 @@ import httpx
 import respx
 from fastapi.testclient import TestClient
 
+_DB_PORT = os.getenv("DB_PORT", "5432")
 os.environ.setdefault("APP_API_KEY", "test-key")
-os.environ.setdefault("DATABASE_URL", "postgresql+psycopg://life:life@localhost:5432/life_test")
+os.environ.setdefault("DATABASE_URL", f"postgresql+psycopg://life:life@localhost:{_DB_PORT}/life_test")
 os.environ.setdefault(
     "DATABASE_URL_RO",
-    "postgresql+psycopg://life_ro:life_ro@localhost:5432/life_test",
+    f"postgresql+psycopg://life_ro:life_ro@localhost:{_DB_PORT}/life_test",
 )
 
-from app.config import get_settings  # noqa: E402
+from app.config import Settings, get_settings  # noqa: E402
 from app.main import app  # noqa: E402
 
 
 def test_health_endpoint_schema():
-    """Asserts that GET /health returns HTTP 200 with the required keys."""
+    """Asserts that GET /health returns HTTP 200 with required keys and configured router."""
     client = TestClient(app)
     response = client.get("/health")
     assert response.status_code == 200
@@ -29,7 +30,31 @@ def test_health_endpoint_schema():
     assert "llm" in data
     assert "llm_detail" in data
     assert "router" in data
-    assert data["router"] in ("needle", "none")
+    assert data["router"] == (get_settings().router_model.strip().lower() or "none")
+
+
+@respx.mock
+def test_health_reports_configured_router(monkeypatch):
+    """GET /health reports configured router name ('general', 'needle', or 'none' if empty)."""
+    model_tag = get_settings().llm_model.removeprefix("ollama/")
+    respx.get("http://127.0.0.1:11434/api/tags").mock(
+        return_value=httpx.Response(200, json={"models": [{"name": model_tag}]})
+    )
+    for router_cfg, expected in [("general", "general"), ("needle", "needle"), ("", "none")]:
+        monkeypatch.setattr(
+            "app.api.routes_health.get_settings",
+            lambda r=router_cfg: Settings(
+                app_env="dev",
+                app_api_key="test-key",
+                database_url=f"postgresql+psycopg://life:life@localhost:{_DB_PORT}/life_test",
+                database_url_ro=(
+                    f"postgresql+psycopg://life_ro:life_ro@localhost:{_DB_PORT}/life_test"
+                ),
+                router_model=r,
+            ),
+        )
+        data = TestClient(app).get("/health").json()
+        assert data["router"] == expected
 
 
 @respx.mock

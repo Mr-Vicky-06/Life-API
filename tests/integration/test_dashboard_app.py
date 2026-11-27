@@ -115,8 +115,15 @@ def test_app_renders_kpis_charts_and_lazy_insight_generation(
     at = AppTest.from_file(str(APP_PATH), default_timeout=15).run()
     assert len(at.exception) == 0
     assert len(at.metric) == 4
+    data_captions = [c.value for c in at.caption if "Data: Synthetic demo data" in c.value]
+    assert len(data_captions) >= 4
     assert any("Correlation, not causation" in c.value for c in at.caption)
     assert insight_calls == []
+
+    monkeypatch.setenv("DATA_LABEL", "Custom labeled test dataset")
+    st.cache_data.clear()
+    at_custom = AppTest.from_file(str(APP_PATH), default_timeout=15).run()
+    assert any("Data: Custom labeled test dataset" in c.value for c in at_custom.caption)
 
     # Daily insight must only run when the Generate insight button is explicitly clicked.
     generate_btn = next(b for b in at.button if b.label == "Generate insight")

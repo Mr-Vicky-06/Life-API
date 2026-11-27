@@ -6,20 +6,27 @@ Never import this module from tests directly — use the fixture in conftest.py.
 from __future__ import annotations
 
 import datetime
+import logging
 from typing import Any
 
 from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 DEFAULT_API_KEY = "change-me"
+logger = logging.getLogger(__name__)
 
 
 def validate_startup_security(settings: Settings) -> None:
-    """Refuse non-dev execution when APP_API_KEY is still the default or empty."""
+    """Refuse non-dev execution when APP_API_KEY is still default; warn if cloud LLM is enabled."""
     if settings.app_env.lower() != "dev" and settings.app_api_key.strip() in ("", DEFAULT_API_KEY):
         raise ValueError(
             "Refusing to start: APP_API_KEY must be changed from the default "
             "when APP_ENV is not 'dev'."
+        )
+    if settings.cloud_llm_enabled:
+        logger.warning(
+            "CLOUD_LLM_ENABLED=true: PII-masked prompts will be sent to configured provider (%s).",
+            settings.llm_model,
         )
 
 
@@ -46,6 +53,8 @@ class Settings(BaseSettings):
 
     database_url: str = Field(..., description="Read-write Postgres DSN")
     database_url_ro: str = Field(..., description="Read-only Postgres DSN")
+    db_port: int = 5432
+    data_label: str = "Synthetic demo data"
 
     llm_model: str = "ollama/qwen2.5-coder:7b"
     llm_fallback_model: str = ""
@@ -63,7 +72,14 @@ class Settings(BaseSettings):
     health_id_regex: str = ""
 
     @model_validator(mode="after")
-    def _check_non_dev_api_key(self) -> Settings:
+    def _apply_db_port_and_validate(self) -> Settings:
+        if self.db_port != 5432:
+            if ":5432/" in self.database_url:
+                self.database_url = self.database_url.replace(":5432/", f":{self.db_port}/", 1)
+            if ":5432/" in self.database_url_ro:
+                self.database_url_ro = self.database_url_ro.replace(
+                    ":5432/", f":{self.db_port}/", 1
+                )
         validate_startup_security(self)
         return self
 

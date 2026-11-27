@@ -46,7 +46,7 @@ def health() -> dict:
     settings = get_settings()
     db_ok = check_db()
     llm_ok, llm_detail = check_llm(settings.llm_api_base, settings.llm_model)
-    router_val = "needle" if settings.router_model.lower() == "needle" else "none"
+    router_val = settings.router_model.strip().lower() or "none"
 
     return {
         "status": "ok",
