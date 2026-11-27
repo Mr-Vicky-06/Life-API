@@ -52,9 +52,9 @@ ruff check .                    # lint
 - [ ] Wrong API key shows a clear error, not a stack trace
 
 ## 7. Definition of Done
-- [ ] All Phase gates passed and pasted in summaries
-- [ ] `pytest -q` → 0 failures; `ruff check .` clean
-- [ ] Fresh clone: `.env.example → .env`, then Commands from `ANTIGRAVITY.md` §4 work in order
-- [ ] No secrets in repo (`git grep -nE "gh[p]_|s[k]-"` returns nothing)
-- [ ] `README.md` has quickstart, architecture diagram, and API examples with curl
-- [ ] `docs/DECISIONS.md` lists every assumption made
+- [x] All Phase gates passed and pasted in summaries (Phases 0–9 recorded under `reports/`)
+- [x] `pytest -m "not live" -q` → 0 failures (`202 passed, 1 skipped`), `pytest -m live -q -W ignore` → `5 passed`; `ruff check .` clean (`All checks passed!`)
+- [x] Fresh clone: `.env.example → .env`, then Commands from `ANTIGRAVITY.md` §4 work in order (verified isolated on `DB_PORT=5433`)
+- [x] No secrets in repo (`git grep -nE "gh[p]_|s[k]-|AI[z]a"` returns nothing, exit 1)
+- [x] `README.md` has quickstart, architecture diagram, `"Using your own data"`, and API examples with curl
+- [x] `docs/DECISIONS.md` lists every assumption made

@@ -213,4 +213,4 @@ ruff check .        # lint
 | 6 — Metrics + Insights API | ✅ |
 | 7 — ReAct Agent | ✅ |
 | 8 — Dashboard | ✅ |
-| 9 — Hardening | ⬜ |
+| 9 — Hardening | ✅ |
